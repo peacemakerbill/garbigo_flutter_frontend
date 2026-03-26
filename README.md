@@ -62,7 +62,7 @@ To build a **global, intelligent waste management system** that makes cities cle
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/garbigo_frontend.git
+git clone https://github.com/peacemakerbill/garbigo_flutter_frontend.git
 cd garbigo_frontend
 flutter pub get
 ```
