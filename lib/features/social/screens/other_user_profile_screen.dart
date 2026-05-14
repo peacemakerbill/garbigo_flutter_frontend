@@ -60,7 +60,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                 textAlign: TextAlign.center,
               ),
               Text(
-                "@${widget.userId}",
+                widget.userId,
                 style: const TextStyle(color: Colors.grey, fontSize: 14),
               ),
               const SizedBox(height: 24),
@@ -127,6 +127,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
               ),
               const Divider(height: 1),
 
+              // Tab Content
               IndexedStack(
                 index: _selectedTab,
                 children: [
@@ -144,8 +145,8 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
   String _getDisplayName() {
     final currentUser = ref.watch(userProvider).user;
     if (currentUser?.id == widget.userId) {
-      return "${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}".trim()
-          .replaceAll(RegExp(r'\s+'), ' ');
+      final name = "${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}".trim();
+      return name.isNotEmpty ? name : "User Profile";
     }
     return "User Profile";
   }
@@ -208,7 +209,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
       children: [
         if (!isOwnProfile)
           Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            padding: const EdgeInsets.only(top: 16, bottom: 12),
             child: Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
@@ -218,64 +219,70 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
               ),
             ),
           ),
-        state.reviews.isEmpty
-            ? const Padding(
-          padding: EdgeInsets.all(40),
-          child: Text("No reviews yet."),
-        )
-            : ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: state.reviews.length,
-          itemBuilder: (context, index) {
-            final review = state.reviews[index];
-            final isMyReview = review.reviewerId == currentUserId;
 
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListTile(
-                title: Text(
-                  review.reviewerName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: List.generate(
-                        5,
-                            (i) => Icon(
-                          Icons.star,
-                          size: 18,
-                          color: i < review.rating ? Colors.amber : Colors.grey,
+        if (state.reviews.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(40),
+            child: Text("No reviews yet."),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: state.reviews.length,
+            itemBuilder: (context, index) {
+              final review = state.reviews[index];
+              final isMyReview = review.reviewerId == currentUserId && currentUserId != null;
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: ListTile(
+                  title: Text(
+                    review.reviewerName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Rating Stars
+                      Row(
+                        children: List.generate(
+                          5,
+                              (i) => Icon(
+                            Icons.star,
+                            size: 18,
+                            color: i < review.rating ? Colors.amber : Colors.grey,
+                          ),
                         ),
                       ),
-                    ),
-                    if (review.comment != null && review.comment!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(review.comment!),
-                      ),
-                  ],
+                      const SizedBox(height: 6),
+                      // Comment
+                      if (review.comment != null && review.comment!.trim().isNotEmpty)
+                        Text(
+                          review.comment!,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                    ],
+                  ),
+                  trailing: isMyReview
+                      ? PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showReviewDialog(context, review);
+                      } else if (value == 'delete') {
+                        notifier.deleteReview(review.id, widget.userId);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  )
+                      : null,
                 ),
-                trailing: isMyReview
-                    ? PopupMenuButton(
-                  onSelected: (value) {
-                    if (value == 'edit') _showReviewDialog(context, review);
-                    if (value == 'delete') {
-                      notifier.deleteReview(review.id, widget.userId);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                )
-                    : null,
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -371,7 +378,10 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                   await notifier.updateReview(
                     existingReview.id,
                     widget.userId,
-                    ReviewUpdateRequest(rating: rating, comment: commentController.text.trim()),
+                    ReviewUpdateRequest(
+                      rating: rating,
+                      comment: commentController.text.trim(),
+                    ),
                   );
                 }
                 Navigator.pop(ctx);

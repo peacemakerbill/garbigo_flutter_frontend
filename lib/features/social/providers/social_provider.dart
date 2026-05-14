@@ -8,6 +8,7 @@ import '../models/follow_check_dto.dart';
 import '../models/like_check_dto.dart';
 import '../models/social_stats_dto.dart';
 import '../models/review_update_request.dart';
+import 'package:garbigo_frontend/core/utils/helpers.dart';
 
 class SocialState {
   final bool isLoading;
@@ -42,7 +43,7 @@ class SocialState {
   }) {
     return SocialState(
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: error,
       followingCache: followingCache ?? this.followingCache,
       likedCache: likedCache ?? this.likedCache,
       stats: stats ?? this.stats,
@@ -59,23 +60,42 @@ class SocialNotifier extends StateNotifier<SocialState> {
   final Ref ref;
   Dio get _dio => ref.read(dioProvider);
 
-  // ====================== FOLLOW & UNFOLLOW ======================
+  Future<void> _handleError(String action, dynamic e) async {
+    final msg = e is DioException
+        ? (e.response?.data?['message'] ?? e.message ?? e.toString())
+        : e.toString();
+    state = state.copyWith(error: msg);
+    Helpers.showToast("$action failed: $msg", isError: true);
+    print("Social $action Error: $msg");
+  }
+
+  // ====================== FOLLOW ======================
   Future<void> follow(String userId) async {
     try {
+      state = state.copyWith(isLoading: true);
       await _dio.post('/social/follow/$userId');
       _updateFollowCache(userId, true);
       await getUserStats(userId);
+      Helpers.showToast("Followed successfully");
     } catch (e) {
-      // You can add error handling here if needed
+      await _handleError("Follow", e);
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   Future<void> unfollow(String userId) async {
     try {
+      state = state.copyWith(isLoading: true);
       await _dio.delete('/social/follow/$userId');
       _updateFollowCache(userId, false);
       await getUserStats(userId);
-    } catch (e) {}
+      Helpers.showToast("Unfollowed successfully");
+    } catch (e) {
+      await _handleError("Unfollow", e);
+    } finally {
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   void _updateFollowCache(String userId, bool status) {
@@ -88,28 +108,52 @@ class SocialNotifier extends StateNotifier<SocialState> {
     try {
       final response = await _dio.get('/social/is-following/$userId');
       _updateFollowCache(userId, FollowCheckDto.fromJson(response.data).isFollowing);
-    } catch (e) {}
+    } catch (e) {
+      print("Check follow status error: $e");
+    }
   }
 
+  // ====================== FOLLOWERS & FOLLOWING ======================
   Future<void> getFollowers(String userId) async {
-    final response = await _dio.get('/social/followers/$userId');
-    final list = (response.data as List).map((e) => UserSummaryDto.fromJson(e)).toList();
-    state = state.copyWith(followersList: list);
+    try {
+      state = state.copyWith(isLoading: true);
+      final response = await _dio.get('/social/followers/$userId');
+      final list = (response.data as List<dynamic>)
+          .map((e) => UserSummaryDto.fromJson(e))
+          .toList();
+      state = state.copyWith(followersList: list);
+    } catch (e) {
+      await _handleError("Get Followers", e);
+    } finally {
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   Future<void> getFollowing(String userId) async {
-    final response = await _dio.get('/social/following/$userId');
-    final list = (response.data as List).map((e) => UserSummaryDto.fromJson(e)).toList();
-    state = state.copyWith(followingList: list);
+    try {
+      state = state.copyWith(isLoading: true);
+      final response = await _dio.get('/social/following/$userId');
+      final list = (response.data as List<dynamic>)
+          .map((e) => UserSummaryDto.fromJson(e))
+          .toList();
+      state = state.copyWith(followingList: list);
+    } catch (e) {
+      await _handleError("Get Following", e);
+    } finally {
+      state = state.copyWith(isLoading: false);
+    }
   }
 
-  // ====================== LIKE & UNLIKE ======================
+  // ====================== LIKE ======================
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
     try {
       await _dio.post('/social/like', data: {'targetId': targetId, 'targetType': targetType});
       _updateLikeCache(targetId, true);
       await getUserStats(targetId);
-    } catch (e) {}
+      Helpers.showToast("Liked successfully");
+    } catch (e) {
+      await _handleError("Like", e);
+    }
   }
 
   Future<void> unlike(String targetId, {String targetType = 'USER'}) async {
@@ -117,7 +161,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
       await _dio.delete('/social/like', data: {'targetId': targetId, 'targetType': targetType});
       _updateLikeCache(targetId, false);
       await getUserStats(targetId);
-    } catch (e) {}
+      Helpers.showToast("Unliked successfully");
+    } catch (e) {
+      await _handleError("Unlike", e);
+    }
   }
 
   void _updateLikeCache(String targetId, bool status) {
@@ -133,7 +180,9 @@ class SocialNotifier extends StateNotifier<SocialState> {
         'targetType': targetType,
       });
       _updateLikeCache(targetId, LikeCheckDto.fromJson(response.data).isLiked);
-    } catch (e) {}
+    } catch (e) {
+      print("Check like status error: $e");
+    }
   }
 
   // ====================== REVIEWS ======================
@@ -143,43 +192,62 @@ class SocialNotifier extends StateNotifier<SocialState> {
           queryParameters: {'targetType': targetType});
       final list = (response.data as List).map((e) => ReviewResponseDto.fromJson(e)).toList();
       state = state.copyWith(reviews: list);
-    } catch (e) {}
+    } catch (e) {
+      print("Get reviews error: $e");
+    }
   }
 
   Future<void> addReview(SocialActionRequest request) async {
-    await _dio.post('/social/review', data: request.toJson());
-    await getReviews(request.targetId, targetType: request.targetType ?? 'USER');
-    await getUserStats(request.targetId);
+    try {
+      await _dio.post('/social/review', data: request.toJson());
+      await getReviews(request.targetId);
+      await getUserStats(request.targetId);
+      Helpers.showToast("Review added successfully");
+    } catch (e) {
+      await _handleError("Add Review", e);
+    }
   }
 
   Future<void> updateReview(String reviewId, String targetId, ReviewUpdateRequest request) async {
-    await _dio.put('/social/review/$reviewId', data: request.toJson());
-    await getReviews(targetId);
-    await getUserStats(targetId);
+    try {
+      await _dio.put('/social/review/$reviewId', data: request.toJson());
+      await getReviews(targetId);
+      await getUserStats(targetId);
+      Helpers.showToast("Review updated successfully");
+    } catch (e) {
+      await _handleError("Update Review", e);
+    }
   }
 
   Future<void> deleteReview(String reviewId, String targetId) async {
-    await _dio.delete('/social/review/$reviewId');
-    await getReviews(targetId);
-    await getUserStats(targetId);
+    try {
+      await _dio.delete('/social/review/$reviewId');
+      await getReviews(targetId);
+      await getUserStats(targetId);
+      Helpers.showToast("Review deleted successfully");
+    } catch (e) {
+      await _handleError("Delete Review", e);
+    }
   }
 
-  // ====================== STATS ======================
   Future<void> getUserStats(String userId) async {
     try {
       final response = await _dio.get('/social/stats/$userId');
       state = state.copyWith(stats: SocialStatsDto.fromJson(response.data));
-    } catch (e) {}
+    } catch (e) {
+      print("Stats error: $e");
+    }
   }
 
-  // ====================== HELPER ======================
   Future<void> refreshAll(String userId) async {
+    state = state.copyWith(isLoading: true);
     await Future.wait([
       getUserStats(userId),
       getReviews(userId),
       checkFollowStatus(userId),
       checkLikeStatus(userId),
     ]);
+    state = state.copyWith(isLoading: false);
   }
 }
 
