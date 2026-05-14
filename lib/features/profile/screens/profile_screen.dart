@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:garbigo_frontend/core/utils/helpers.dart';
-import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/profile/providers/profile_provider.dart';
+import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -16,11 +15,10 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
+  late TextEditingController _usernameCtrl;
   late TextEditingController _firstNameCtrl;
   late TextEditingController _middleNameCtrl;
   late TextEditingController _lastNameCtrl;
-  late TextEditingController _usernameCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _addressCtrl;
   late TextEditingController _wastePrefCtrl;
@@ -31,12 +29,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize controllers with current user data
     final user = ref.read(userProvider).user;
+
+    _usernameCtrl = TextEditingController(text: user?.username ?? '');
     _firstNameCtrl = TextEditingController(text: user?.firstName ?? '');
     _middleNameCtrl = TextEditingController(text: user?.middleName ?? '');
     _lastNameCtrl = TextEditingController(text: user?.lastName ?? '');
-    _usernameCtrl = TextEditingController(text: user?.username ?? '');
     _phoneCtrl = TextEditingController(text: user?.phoneNumber ?? '');
     _addressCtrl = TextEditingController(text: user?.homeAddress ?? '');
     _wastePrefCtrl = TextEditingController(text: user?.wastePreferences ?? '');
@@ -45,10 +43,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   void dispose() {
+    _usernameCtrl.dispose();
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
-    _usernameCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
     _wastePrefCtrl.dispose();
@@ -58,11 +56,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (image != null) {
-      setState(() {
-        _pickedImage = image;
-      });
+      setState(() => _pickedImage = image);
     }
   }
 
@@ -70,10 +66,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final data = {
+      'username': _usernameCtrl.text.trim(),
       'firstName': _firstNameCtrl.text.trim(),
       'middleName': _middleNameCtrl.text.trim(),
       'lastName': _lastNameCtrl.text.trim(),
-      'username': _usernameCtrl.text.trim(),
       'phoneNumber': _phoneCtrl.text.trim(),
       'homeAddress': _addressCtrl.text.trim(),
       'wastePreferences': _wastePrefCtrl.text.trim(),
@@ -85,34 +81,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       imageFile: _pickedImage,
     );
   }
+
   @override
   Widget build(BuildContext context) {
     final userState = ref.watch(userProvider);
     final profileState = ref.watch(profileProvider);
-    final authNotifier = ref.read(authProvider.notifier);
+    final user = userState.user;
 
-    if (userState.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (userState.user == null) {
-      return const Scaffold(body: Center(child: Text('User not found')));
-    }
+    // Load social stats
+    final socialNotifier = ref.read(socialProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => Helpers.showLogoutDialog(context, () {
-              authNotifier.logout();
-            }),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('My Profile')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
           child: Column(
@@ -124,35 +106,58 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   alignment: Alignment.bottomRight,
                   children: [
                     CircleAvatar(
-                      radius: 70,
+                      radius: 75,
                       backgroundImage: _pickedImage != null
-                          ? NetworkImage(_pickedImage!.path)
-                          : (userState.user!.profilePictureUrl.isNotEmpty
-                          ? NetworkImage(userState.user!.profilePictureUrl)
+                          ? null // Handled via FileImage in real impl
+                          : (user?.profilePictureUrl.isNotEmpty == true
+                          ? NetworkImage(user!.profilePictureUrl)
                           : null),
-                      child: userState.user!.profilePictureUrl.isEmpty && _pickedImage == null
-                          ? const Icon(Icons.person, size: 70, color: Colors.grey)
+                      child: (user?.profilePictureUrl.isEmpty == true && _pickedImage == null)
+                          ? const Icon(Icons.person, size: 80, color: Colors.grey)
                           : null,
                     ),
                     const CircleAvatar(
-                      radius: 20,
+                      radius: 22,
                       backgroundColor: Colors.green,
                       child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
                     ),
                   ],
                 ),
               ),
+
+              const SizedBox(height: 20),
+
+              // Social Stats
+              Consumer(
+                builder: (context, ref, child) {
+                  return FutureBuilder(
+                    future: socialNotifier.getUserStats(user?.id ?? ''),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final stats = snapshot.data!;
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStat('Followers', stats.followersCount),
+                            _buildStat('Following', stats.followingCount),
+                            _buildStat('Likes', stats.likesCount),
+                            _buildStat('Rating', stats.averageRating.toStringAsFixed(1)),
+                          ],
+                        );
+                      }
+                      return const SizedBox();
+                    },
+                  );
+                },
+              ),
+
               const SizedBox(height: 32),
 
               // Form Fields
               TextFormField(
                 controller: _usernameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (v) => v!.trim().isEmpty ? 'Username required' : null,
+                decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person_outline)),
+                validator: (v) => v!.trim().isEmpty ? 'Username is required' : null,
               ),
               const SizedBox(height: 16),
 
@@ -161,11 +166,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _firstNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'First Name',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: const InputDecoration(labelText: 'First Name', prefixIcon: Icon(Icons.person)),
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     ),
                   ),
@@ -173,11 +174,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _lastNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Last Name',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Last Name', prefixIcon: Icon(Icons.person)),
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     ),
                   ),
@@ -187,91 +184,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               TextFormField(
                 controller: _middleNameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Middle Name (Optional)',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Middle Name (Optional)', prefixIcon: Icon(Icons.person_outline)),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Phone Number', prefixIcon: Icon(Icons.phone)),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _addressCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Home Address',
-                  prefixIcon: Icon(Icons.home),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Home Address', prefixIcon: Icon(Icons.home)),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _wastePrefCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Waste Preferences',
-                  prefixIcon: Icon(Icons.recycling),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Waste Preferences', prefixIcon: Icon(Icons.recycling)),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _scheduleCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Preferred Collection Schedule',
-                  prefixIcon: Icon(Icons.schedule),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Collection Schedule', prefixIcon: Icon(Icons.schedule)),
               ),
-              const SizedBox(height: 32),
 
-              // Status Messages
+              const SizedBox(height: 40),
+
+              // Status & Button
               if (profileState.isLoading)
                 const CircularProgressIndicator()
               else if (profileState.successMessage != null)
-                Text(
-                  profileState.successMessage!,
-                  style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                )
+                Text(profileState.successMessage!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
               else if (profileState.error != null)
-                  Text(
-                    profileState.error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(profileState.error!, style: const TextStyle(color: Colors.red)),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Update Button
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: profileState.isLoading ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
                   child: const Text('Update Profile', style: TextStyle(fontSize: 18)),
                 ),
               ),
-
-              const SizedBox(height: 48),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStat(String label, dynamic value) {
+    return Column(
+      children: [
+        Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+      ],
     );
   }
 }
