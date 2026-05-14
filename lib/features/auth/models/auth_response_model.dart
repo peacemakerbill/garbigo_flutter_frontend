@@ -1,4 +1,3 @@
-// features/auth/models/auth_response_model.dart
 class AuthResponseModel {
   final String token;
   final String role;
@@ -12,9 +11,17 @@ class AuthResponseModel {
 
   factory AuthResponseModel.fromJson(Map<String, dynamic> json) {
     return AuthResponseModel(
-      token: json['token'] as String,
-      role: json['role'] as String,
-      verified: json['verified'] as bool? ?? false,
+      token: json['token'] ?? '',
+      role: json['role'] ?? 'CLIENT',
+      verified: json['verified'] ?? false,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'token': token,
+      'role': role,
+      'verified': verified,
+    };
   }
 }

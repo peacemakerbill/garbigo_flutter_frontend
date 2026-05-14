@@ -1,4 +1,3 @@
-// features/auth/models/user_model.dart
 class UserModel {
   final String id;
   final String username;
@@ -15,6 +14,8 @@ class UserModel {
   final bool verified;
   final bool active;
   final bool archived;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   UserModel({
     required this.id,
@@ -32,11 +33,13 @@ class UserModel {
     required this.verified,
     required this.active,
     required this.archived,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'] ?? '',
+      id: json['id'] ?? json['_id'] ?? '',
       username: json['username'] ?? '',
       firstName: json['firstName'] ?? '',
       middleName: json['middleName'] ?? '',
@@ -51,6 +54,30 @@ class UserModel {
       verified: json['verified'] ?? false,
       active: json['active'] ?? true,
       archived: json['archived'] ?? false,
+      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'username': username,
+      'firstName': firstName,
+      'middleName': middleName,
+      'lastName': lastName,
+      'email': email,
+      'phoneNumber': phoneNumber,
+      'homeAddress': homeAddress,
+      'profilePictureUrl': profilePictureUrl,
+      'role': role,
+      'wastePreferences': wastePreferences,
+      'collectionSchedule': collectionSchedule,
+      'verified': verified,
+      'active': active,
+      'archived': archived,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
   }
 }
