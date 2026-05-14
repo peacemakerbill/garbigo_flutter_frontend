@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/constants/app_themes.dart';
 import 'package:garbigo_frontend/routing/app_router.dart';
+import 'package:garbigo_frontend/routing/router_notifier.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/location/providers/live_location_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,10 +31,13 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Listen to auth state to start live location when user logs in as Collector
+    // RouterNotifier holds a Ref internally — no need to pass WidgetRef.
+    final notifier = ref.watch(routerNotifierProvider);
+    final router = AppRouter.createRouter(notifier);
+
+    // Start live location tracking when a COLLECTOR logs in.
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.token != null && next.role == 'COLLECTOR') {
-        // Start live location tracking when Collector logs in
         Future.delayed(const Duration(seconds: 2), () {
           ref.read(liveLocationProvider.notifier).requestPermissionAndStart();
         });
@@ -44,7 +48,7 @@ class MyApp extends ConsumerWidget {
       title: 'Garbigo',
       theme: AppThemes.lightTheme,
       themeMode: ThemeMode.system,
-      routerConfig: AppRouter.router,
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
   }
