@@ -1,11 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/core/network/api_client.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
 import 'package:garbigo_frontend/features/auth/models/user_model.dart';
-
-import 'auth_provider.dart';
 
 class UserState {
   final UserModel? user;
@@ -13,7 +10,12 @@ class UserState {
   final bool isLoading;
   final String? error;
 
-  UserState({this.user, this.allUsers = const [], this.isLoading = false, this.error});
+  UserState({
+    this.user,
+    this.allUsers = const [],
+    this.isLoading = false,
+    this.error,
+  });
 
   UserState copyWith({
     UserModel? user,
@@ -35,66 +37,81 @@ class UserNotifier extends StateNotifier<UserState> {
 
   final Ref ref;
 
+  // ==================== CURRENT USER ====================
   Future<void> fetchCurrentUser() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      final dio = Dio(BaseOptions(baseUrl: AppConfig.usersBase));
-      final token = ref.read(authProvider).token;
-      final response = await dio.get('/profile', options: Options(headers: {'Authorization': 'Bearer $token'}));
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
+      final response = await dio.get('/profile');
       final user = UserModel.fromJson(response.data);
+
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
+  // ==================== ADMIN: GET ALL USERS ====================
   Future<void> getAllUsers({String search = ''}) async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      final dio = ref.read(dioProvider)..options.baseUrl = AppConfig.usersBase;
-      final response = await dio.get('', queryParameters: search.isNotEmpty ? {'search': search} : null);
-      final List usersJson = response.data;
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
+      final response = await dio.get(
+        '',
+        queryParameters: search.isNotEmpty ? {'search': search} : null,
+      );
+
+      final List<dynamic> usersJson = response.data;
       final users = usersJson.map((json) => UserModel.fromJson(json)).toList();
+
       state = state.copyWith(allUsers: users, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> updateProfile(Map<String, dynamic> data, [String? imagePath]) async {
-    try {
-      final dio = ref.read(dioProvider)..options.baseUrl = AppConfig.usersBase;
-      FormData formData = FormData.fromMap(data);
-      if (imagePath != null) {
-        formData.files.add(MapEntry('profilePicture', await MultipartFile.fromFile(imagePath)));
-      }
-      await dio.put('/profile', data: formData);
-      await fetchCurrentUser();
-      Helpers.showToast('Profile updated');
-    } catch (e) {
-      Helpers.showToast('Update failed', isError: true);
-    }
-  }
-
+  // ==================== ADMIN: USER MANAGEMENT ====================
   Future<void> toggleUserStatus(String userId, String action) async {
     try {
-      final dio = ref.read(dioProvider)..options.baseUrl = AppConfig.usersBase;
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
       await dio.put('/$userId/$action');
       await getAllUsers();
-      Helpers.showToast('User $action successful');
+      Helpers.showToast('$action successful');
     } catch (e) {
-      Helpers.showToast('Action failed', isError: true);
+      Helpers.showToast('Action failed: ${e.toString()}', isError: true);
     }
   }
 
   Future<void> deleteUser(String userId) async {
     try {
-      final dio = ref.read(dioProvider)..options.baseUrl = AppConfig.usersBase;
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
       await dio.delete('/$userId');
       await getAllUsers();
-      Helpers.showToast('User deleted');
+      Helpers.showToast('User deleted successfully');
     } catch (e) {
       Helpers.showToast('Delete failed', isError: true);
+    }
+  }
+
+  // ==================== PROFILE UPDATE ====================
+  Future<void> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
+      await dio.put('/profile', data: data);
+      await fetchCurrentUser();
+      Helpers.showToast('Profile updated successfully');
+    } catch (e) {
+      Helpers.showToast('Profile update failed', isError: true);
     }
   }
 
@@ -103,4 +120,6 @@ class UserNotifier extends StateNotifier<UserState> {
   }
 }
 
-final userProvider = StateNotifierProvider<UserNotifier, UserState>((ref) => UserNotifier(ref));
+final userProvider = StateNotifierProvider<UserNotifier, UserState>(
+      (ref) => UserNotifier(ref),
+);

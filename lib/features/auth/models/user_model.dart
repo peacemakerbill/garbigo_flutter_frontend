@@ -14,8 +14,6 @@ class UserModel {
   final bool verified;
   final bool active;
   final bool archived;
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   UserModel({
     required this.id,
@@ -33,8 +31,6 @@ class UserModel {
     required this.verified,
     required this.active,
     required this.archived,
-    required this.createdAt,
-    required this.updatedAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -54,8 +50,6 @@ class UserModel {
       verified: json['verified'] ?? false,
       active: json['active'] ?? true,
       archived: json['archived'] ?? false,
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
   }
 
@@ -76,8 +70,6 @@ class UserModel {
       'verified': verified,
       'active': active,
       'archived': archived,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 }
