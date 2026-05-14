@@ -5,9 +5,7 @@ import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
-import 'package:garbigo_frontend/features/social/models/follow_check_dto.dart';
-import 'package:garbigo_frontend/features/social/models/like_check_dto.dart';
-import 'package:go_router/go_router.dart';
+import 'package:garbigo_frontend/features/social/models/review_update_request.dart';
 
 class OtherUserProfileScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -21,132 +19,112 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
 class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen> {
   int _selectedTab = 0; // 0: About, 1: Reviews
 
+  @override
+  void initState() {
+    super.initState();
+    // Load initial data after build
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
   Future<void> _loadData() async {
     final notifier = ref.read(socialProvider.notifier);
     await Future.wait([
       notifier.getUserStats(widget.userId),
       notifier.getReviews(widget.userId),
+      notifier.checkFollowStatus(widget.userId),
+      notifier.checkLikeStatus(widget.userId),
     ]);
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final currentUser = ref.watch(userProvider).user;
-    final bool isOwnProfile = currentUser?.id == widget.userId;
+    final socialState = ref.watch(socialProvider);
     final socialNotifier = ref.read(socialProvider.notifier);
+    final currentUser = ref.watch(userProvider).user;
+
+    final bool isOwnProfile = currentUser?.id == widget.userId;
+    final bool isFollowing = socialState.followingCache[widget.userId] ?? false;
+    final bool isLiked = socialState.likedCache[widget.userId] ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(title: const Text('User Profile')),
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Profile Header
-              Center(
-                child: Column(
-                  children: [
-                    const CircleAvatar(radius: 70),
-                    const SizedBox(height: 12),
-                    Text("User Profile", style: Theme.of(context).textTheme.headlineMedium),
-                    Text(widget.userId, style: const TextStyle(color: Colors.grey)),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+              const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)),
+              const SizedBox(height: 16),
+              Text(
+                widget.userId, // Replace with username if available in stats
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
+              const SizedBox(height: 24),
 
-              // Dynamic Action Buttons
+              // Social Stats Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStatColumn('Followers', socialState.stats?.followersCount ?? 0, () => _showUserList(context, 'Followers')),
+                  _buildStatColumn('Following', socialState.stats?.followingCount ?? 0, () => _showUserList(context, 'Following')),
+                  _buildStatColumn('Likes', socialState.stats?.likesCount ?? 0, null),
+                  _buildStatColumn('Rating', socialState.stats?.averageRating.toStringAsFixed(1) ?? '0.0', null),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Action Buttons
               if (!isOwnProfile)
                 Row(
                   children: [
-                    // Follow Button
                     Expanded(
-                      child: FutureBuilder<FollowCheckDto>(
-                        future: socialNotifier.isFollowing(widget.userId),
-                        builder: (context, snapshot) {
-                          final isFollowing = snapshot.data?.isFollowing ?? false;
-                          return ElevatedButton.icon(
-                            onPressed: () async {
-                              try {
-                                if (isFollowing) {
-                                  await socialNotifier.unfollow(widget.userId);
-                                  Helpers.showToast('Unfollowed successfully');
-                                } else {
-                                  await socialNotifier.follow(widget.userId);
-                                  Helpers.showToast('Followed successfully');
-                                }
-                                await _loadData();
-                              } catch (e) {
-                                Helpers.showToast('Action failed', isError: true);
-                              }
-                            },
-                            icon: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
-                            label: Text(isFollowing ? 'Unfollow' : 'Follow'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isFollowing ? Colors.grey : null,
-                            ),
-                          );
-                        },
+                      child: ElevatedButton.icon(
+                        onPressed: () => isFollowing
+                            ? socialNotifier.unfollow(widget.userId)
+                            : socialNotifier.follow(widget.userId),
+                        icon: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
+                        label: Text(isFollowing ? 'Unfollow' : 'Follow'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isFollowing ? Colors.grey[300] : null,
+                          foregroundColor: isFollowing ? Colors.black : null,
+                        ),
                       ),
                     ),
-
                     const SizedBox(width: 12),
-
-                    // Like Button
-                    Expanded(
-                      child: FutureBuilder<LikeCheckDto>(
-                        future: socialNotifier.isLiked(widget.userId, targetType: 'USER'),
-                        builder: (context, snapshot) {
-                          final isLiked = snapshot.data?.isLiked ?? false;
-                          return ElevatedButton.icon(
-                            onPressed: () async {
-                              try {
-                                if (isLiked) {
-                                  await socialNotifier.unlike(widget.userId, targetType: 'USER');
-                                  Helpers.showToast('Unliked');
-                                } else {
-                                  await socialNotifier.like(widget.userId, targetType: 'USER');
-                                  Helpers.showToast('Liked');
-                                }
-                                setState(() {}); // Refresh like status
-                              } catch (e) {
-                                Helpers.showToast('Action failed', isError: true);
-                              }
-                            },
-                            icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
-                            label: Text(isLiked ? 'Unlike' : 'Like'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isLiked ? Colors.red : null,
-                            ),
-                          );
-                        },
+                    IconButton.filledTonal(
+                      onPressed: () => isLiked
+                          ? socialNotifier.unlike(widget.userId)
+                          : socialNotifier.like(widget.userId),
+                      icon: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        color: isLiked ? Colors.red : null,
                       ),
                     ),
                   ],
                 ),
 
-              const SizedBox(height: 24),
-
-              // Social Stats
-              _buildSocialStats(),
-
               const SizedBox(height: 32),
 
-              // Tabs
-              _buildTabBar(),
+              // Tab Section
+              Row(
+                children: [
+                  _buildTabButton(0, 'About'),
+                  _buildTabButton(1, 'Reviews'),
+                ],
+              ),
+              const Divider(height: 1),
 
-              const SizedBox(height: 20),
-
-              if (_selectedTab == 0) _buildAboutTab(),
-              if (_selectedTab == 1) _buildReviewsTab(socialNotifier),
+              // Tab Content
+              IndexedStack(
+                index: _selectedTab,
+                children: [
+                  _buildAboutTab(),
+                  _buildReviewsTab(socialState, socialNotifier, isOwnProfile),
+                ],
+              ),
             ],
           ),
         ),
@@ -154,118 +132,96 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
-  Widget _buildSocialStats() {
-    return Consumer(
-      builder: (context, ref, child) {
-        return FutureBuilder(
-          future: ref.read(socialProvider.notifier).getUserStats(widget.userId),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const CircularProgressIndicator();
-            final stats = snapshot.data!;
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStat('Followers', stats.followersCount),
-                _buildStat('Following', stats.followingCount),
-                _buildStat('Rating', stats.averageRating.toStringAsFixed(1)),
-              ],
-            );
-          },
-        );
-      },
+  Widget _buildStatColumn(String label, dynamic value, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+        child: Column(
+          children: [
+            Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildStat(String label, dynamic value) {
-    return Column(
-      children: [
-        Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.grey)),
-      ],
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _tabButton(0, 'About'),
-        const SizedBox(width: 40),
-        _tabButton(1, 'Reviews'),
-      ],
-    );
-  }
-
-  Widget _tabButton(int index, String text) {
-    final isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Text(
-        text,
-        style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+  Widget _buildTabButton(int index, String label) {
+    final bool isSelected = _selectedTab == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: isSelected ? Colors.green : Colors.transparent, width: 2)),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.green : Colors.black),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildAboutTab() {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Text('More information about this user will appear here.'),
-      ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Text("No additional user information available."),
     );
   }
 
-  Widget _buildReviewsTab(SocialNotifier notifier) {
+  Widget _buildReviewsTab(SocialState state, SocialNotifier notifier, bool isOwnProfile) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Reviews', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Write Review'),
-              onPressed: () => _showAddReviewDialog(notifier),
+        if (!isOwnProfile)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _showReviewDialog(context, null),
+                icon: const Icon(Icons.add),
+                label: const Text("Write a Review"),
+              ),
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        FutureBuilder<List<ReviewResponseDto>>(
-          future: notifier.getReviews(widget.userId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final reviews = snapshot.data ?? [];
-            if (reviews.isEmpty) return const Text('No reviews yet.');
-
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: reviews.length,
-              itemBuilder: (context, index) {
-                final review = reviews[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    title: Text(review.reviewerName),
-                    subtitle: Text(review.comment ?? ''),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(
-                        5,
-                            (i) => Icon(
-                          i < review.rating ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
+          ),
+        state.reviews.isEmpty
+            ? const Padding(padding: EdgeInsets.all(32), child: Text("No reviews yet."))
+            : ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: state.reviews.length,
+          itemBuilder: (context, index) {
+            final review = state.reviews[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                title: Text(review.reviewerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: List.generate(5, (i) => Icon(Icons.star, size: 16, color: i < review.rating ? Colors.amber : Colors.grey))),
+                    if (review.comment != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(review.comment!)),
+                  ],
+                ),
+                trailing: !isOwnProfile && review.reviewerId == ref.read(userProvider).user?.id
+                    ? PopupMenuButton(
+                  onSelected: (value) {
+                    if (value == 'edit') _showReviewDialog(context, review);
+                    if (value == 'delete') notifier.deleteReview(review.id, widget.userId);
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                )
+                    : null,
+              ),
             );
           },
         ),
@@ -273,60 +229,94 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
-  void _showAddReviewDialog(SocialNotifier notifier) {
-    int rating = 5;
-    final commentCtrl = TextEditingController();
+  void _showUserList(BuildContext context, String title) {
+    final notifier = ref.read(socialProvider.notifier);
+    if (title == 'Followers') {
+      notifier.getFollowers(widget.userId);
+    } else {
+      notifier.getFollowing(widget.userId);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final users = title == 'Followers' ? ref.watch(socialProvider).followersList : ref.watch(socialProvider).followingList;
+          return Column(
+            children: [
+              Padding(padding: const EdgeInsets.all(16), child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              const Divider(),
+              Expanded(
+                child: users.isEmpty
+                    ? const Center(child: Text("No users found."))
+                    : ListView.builder(
+                  itemCount: users.length,
+                  itemBuilder: (context, i) => ListTile(
+                    leading: CircleAvatar(child: Text(users[i].firstName?[0] ?? 'U')),
+                    title: Text("${users[i].firstName ?? ''} ${users[i].lastName ?? ''}"),
+                    subtitle: Text("@${users[i].username ?? 'user'}"),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showReviewDialog(BuildContext context, ReviewResponseDto? existingReview) {
+    int rating = existingReview?.rating ?? 5;
+    final commentController = TextEditingController(text: existingReview?.comment);
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Write a Review'),
-        content: StatefulBuilder(
-          builder: (context, setInnerState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (i) => IconButton(
-                    icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 36),
-                    onPressed: () => setInnerState(() => rating = i + 1),
-                  )),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: commentCtrl,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: "Write your review...",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(onPressed: () => ctx.pop(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              try {
-                await notifier.addReview(SocialActionRequest(
-                  targetId: widget.userId,
-                  targetType: "USER",
-                  rating: rating,
-                  comment: commentCtrl.text.trim(),
-                ));
-                ctx.pop();
-                await _loadData();
-                Helpers.showToast('Review posted successfully');
-              } catch (e) {
-                Helpers.showToast('Failed to post review', isError: true);
-              }
-            },
-            child: const Text('Post Review'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setInnerState) => AlertDialog(
+          title: Text(existingReview == null ? "Write a Review" : "Update Review"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => IconButton(
+                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey),
+                  onPressed: () => setInnerState(() => rating = i + 1),
+                )),
+              ),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(hintText: "Your thoughts...", border: OutlineInputBorder()),
+                maxLines: 3,
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+            ElevatedButton(
+              onPressed: () async {
+                final notifier = ref.read(socialProvider.notifier);
+                if (existingReview == null) {
+                  await notifier.addReview(SocialActionRequest(
+                    targetId: widget.userId,
+                    targetType: "USER",
+                    rating: rating,
+                    comment: commentController.text,
+                  ));
+                } else {
+                  await notifier.updateReview(existingReview.id, widget.userId, ReviewUpdateRequest(
+                    rating: rating,
+                    comment: commentController.text,
+                  ));
+                }
+                Navigator.pop(ctx);
+                Helpers.showToast("Success");
+              },
+              child: const Text("Submit"),
+            ),
+          ],
+        ),
       ),
     );
   }

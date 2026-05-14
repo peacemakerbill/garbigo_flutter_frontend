@@ -13,9 +13,10 @@ class SocialStatsDto {
 
   factory SocialStatsDto.fromJson(Map<String, dynamic> json) {
     return SocialStatsDto(
-      followersCount: json['followersCount'] ?? 0,
-      followingCount: json['followingCount'] ?? 0,
-      likesCount: json['likesCount'] ?? 0,
+      // Use .toInt() to handle potential Long/int variations from the API
+      followersCount: (json['followersCount'] ?? 0).toInt(),
+      followingCount: (json['followingCount'] ?? 0).toInt(),
+      likesCount: (json['likesCount'] ?? 0).toInt(),
       averageRating: (json['averageRating'] ?? 0.0).toDouble(),
     );
   }

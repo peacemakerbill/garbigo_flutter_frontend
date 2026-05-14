@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
-import 'package:go_router/go_router.dart';
 
-class SocialActionBar extends ConsumerStatefulWidget {
+class SocialActionBar extends ConsumerWidget {
   final String targetUserId;
   final bool showReviewButton;
 
@@ -16,149 +15,131 @@ class SocialActionBar extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SocialActionBar> createState() => _SocialActionBarState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final socialState = ref.watch(socialProvider);
+    final notifier = ref.read(socialProvider.notifier);
 
-class _SocialActionBarState extends ConsumerState<SocialActionBar> {
-  @override
-  Widget build(BuildContext context) {
-    final socialNotifier = ref.read(socialProvider.notifier);
+    final bool isFollowing = socialState.followingCache[targetUserId] ?? false;
+    final bool isLiked = socialState.likedCache[targetUserId] ?? false;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, -2)),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Follow Button
-          _buildActionButton(
-            icon: Icons.person_add,
-            label: "Follow",
-            onPressed: () async {
-              try {
-                final isFollowing = await socialNotifier.isFollowing(widget.targetUserId);
-                if (isFollowing.isFollowing) {
-                  await socialNotifier.unfollow(widget.targetUserId);
-                  Helpers.showToast("Unfollowed");
-                } else {
-                  await socialNotifier.follow(widget.targetUserId);
-                  Helpers.showToast("Followed successfully");
-                }
-              } catch (e) {
-                Helpers.showToast("Action failed", isError: true);
-              }
-            },
-          ),
-
-          // Like Button (for the user profile)
-          _buildActionButton(
-            icon: Icons.favorite_border,
-            label: "Like",
-            onPressed: () async {
-              try {
-                await socialNotifier.like(widget.targetUserId, targetType: "USER");
-                Helpers.showToast("Liked!");
-              } catch (e) {
-                Helpers.showToast("Already liked or error", isError: true);
-              }
-            },
-          ),
-
-          // Review Button
-          if (widget.showReviewButton)
-            _buildActionButton(
-              icon: Icons.rate_review_outlined,
-              label: "Review",
-              onPressed: () => _showReviewDialog(context, socialNotifier),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Follow/Unfollow Button
+            _buildButton(
+              context,
+              icon: isFollowing ? Icons.person_remove : Icons.person_add,
+              label: isFollowing ? "Unfollow" : "Follow",
+              color: isFollowing ? Colors.grey : Colors.green,
+              onPressed: () => isFollowing
+                  ? notifier.unfollow(targetUserId)
+                  : notifier.follow(targetUserId),
             ),
-        ],
+
+            // Like/Unlike Button
+            _buildButton(
+              context,
+              icon: isLiked ? Icons.favorite : Icons.favorite_border,
+              label: isLiked ? "Liked" : "Like",
+              color: isLiked ? Colors.red : Colors.grey,
+              onPressed: () => isLiked
+                  ? notifier.unlike(targetUserId)
+                  : notifier.like(targetUserId),
+            ),
+
+            if (showReviewButton)
+              _buildButton(
+                context,
+                icon: Icons.rate_review,
+                label: "Review",
+                color: Colors.blue,
+                onPressed: () => _showReviewSheet(context, ref),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildButton(BuildContext context, {
     required IconData icon,
     required String label,
+    required Color color,
     required VoidCallback onPressed,
   }) {
     return InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 28, color: Theme.of(context).primaryColor),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 13)),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
 
-  void _showReviewDialog(BuildContext context, SocialNotifier notifier) {
+  void _showReviewSheet(BuildContext context, WidgetRef ref) {
     int rating = 5;
     final commentCtrl = TextEditingController();
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Write a Review'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                5,
-                    (i) => IconButton(
-                  icon: Icon(
-                    Icons.star,
-                    color: i < rating ? Colors.amber : Colors.grey,
-                    size: 32,
-                  ),
-                  onPressed: () {
-                    setState(() => rating = i + 1);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: commentCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: "What did you think about this user?",
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => ctx.pop(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              await notifier.addReview(
-                SocialActionRequest(
-                  targetId: widget.targetUserId,
-                  targetType: "USER",
-                  rating: rating,
-                  comment: commentCtrl.text.trim(),
-                ),
-              );
-              ctx.pop();
-              Helpers.showToast("Review submitted successfully!");
-            },
-            child: const Text('Post Review'),
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setInnerState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 20, right: 20, top: 20,
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Rate User", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => IconButton(
+                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 40),
+                  onPressed: () => setInnerState(() => rating = i + 1),
+                )),
+              ),
+              TextField(
+                controller: commentCtrl,
+                decoration: const InputDecoration(hintText: "Write a review...", border: OutlineInputBorder()),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await ref.read(socialProvider.notifier).addReview(SocialActionRequest(
+                      targetId: targetUserId,
+                      targetType: "USER",
+                      rating: rating,
+                      comment: commentCtrl.text,
+                    ));
+                    Navigator.pop(ctx);
+                    Helpers.showToast("Review submitted");
+                  },
+                  child: const Text("Submit Review"),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
