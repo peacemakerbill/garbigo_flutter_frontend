@@ -27,33 +27,47 @@ class SocialActionBar extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
         ],
       ),
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // Follow/Unfollow Button
+            // Follow Button
             _buildButton(
               context,
               icon: isFollowing ? Icons.person_remove : Icons.person_add,
               label: isFollowing ? "Unfollow" : "Follow",
               color: isFollowing ? Colors.grey : Colors.green,
-              onPressed: () => isFollowing
-                  ? notifier.unfollow(targetUserId)
-                  : notifier.follow(targetUserId),
+              onPressed: () async {
+                if (isFollowing) {
+                  await notifier.unfollow(targetUserId);
+                } else {
+                  await notifier.follow(targetUserId);
+                }
+                await notifier.checkFollowStatus(targetUserId);
+              },
             ),
 
-            // Like/Unlike Button
+            // Like Button
             _buildButton(
               context,
               icon: isLiked ? Icons.favorite : Icons.favorite_border,
               label: isLiked ? "Liked" : "Like",
               color: isLiked ? Colors.red : Colors.grey,
-              onPressed: () => isLiked
-                  ? notifier.unlike(targetUserId)
-                  : notifier.like(targetUserId),
+              onPressed: () async {
+                if (isLiked) {
+                  await notifier.unlike(targetUserId);
+                } else {
+                  await notifier.like(targetUserId);
+                }
+                await notifier.checkLikeStatus(targetUserId);
+              },
             ),
 
             if (showReviewButton)
@@ -70,20 +84,29 @@ class SocialActionBar extends ConsumerWidget {
     );
   }
 
-  Widget _buildButton(BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
+  Widget _buildButton(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required Color color,
+        required VoidCallback onPressed,
+      }) {
     return InkWell(
       onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color),
+          Icon(icon, color: color, size: 28),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -100,23 +123,39 @@ class SocialActionBar extends ConsumerWidget {
         builder: (context, setInnerState) => Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 20, right: 20, top: 20,
+            left: 20,
+            right: 20,
+            top: 20,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Rate User", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                "Rate User",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => IconButton(
-                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 40),
-                  onPressed: () => setInnerState(() => rating = i + 1),
-                )),
+                children: List.generate(
+                  5,
+                      (i) => IconButton(
+                    icon: Icon(
+                      Icons.star,
+                      color: i < rating ? Colors.amber : Colors.grey,
+                      size: 40,
+                    ),
+                    onPressed: () => setInnerState(() => rating = i + 1),
+                  ),
+                ),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: commentCtrl,
-                decoration: const InputDecoration(hintText: "Write a review...", border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  hintText: "Write a review...",
+                  border: OutlineInputBorder(),
+                ),
                 maxLines: 3,
               ),
               const SizedBox(height: 20),
@@ -124,14 +163,17 @@ class SocialActionBar extends ConsumerWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await ref.read(socialProvider.notifier).addReview(SocialActionRequest(
-                      targetId: targetUserId,
-                      targetType: "USER",
-                      rating: rating,
-                      comment: commentCtrl.text,
-                    ));
+                    final notifier = ref.read(socialProvider.notifier);
+                    await notifier.addReview(
+                      SocialActionRequest(
+                        targetId: targetUserId,
+                        targetType: "USER",
+                        rating: rating,
+                        comment: commentCtrl.text.trim(),
+                      ),
+                    );
                     Navigator.pop(ctx);
-                    Helpers.showToast("Review submitted");
+                    Helpers.showToast("Review submitted successfully");
                   },
                   child: const Text("Submit Review"),
                 ),

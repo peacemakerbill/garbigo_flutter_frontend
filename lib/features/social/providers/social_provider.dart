@@ -42,7 +42,7 @@ class SocialState {
   }) {
     return SocialState(
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      error: error ?? this.error,
       followingCache: followingCache ?? this.followingCache,
       likedCache: likedCache ?? this.likedCache,
       stats: stats ?? this.stats,
@@ -61,15 +61,21 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   // ====================== FOLLOW & UNFOLLOW ======================
   Future<void> follow(String userId) async {
-    await _dio.post('/social/follow/$userId');
-    _updateFollowCache(userId, true);
-    await getUserStats(userId);
+    try {
+      await _dio.post('/social/follow/$userId');
+      _updateFollowCache(userId, true);
+      await getUserStats(userId);
+    } catch (e) {
+      // You can add error handling here if needed
+    }
   }
 
   Future<void> unfollow(String userId) async {
-    await _dio.delete('/social/follow/$userId');
-    _updateFollowCache(userId, false);
-    await getUserStats(userId);
+    try {
+      await _dio.delete('/social/follow/$userId');
+      _updateFollowCache(userId, false);
+      await getUserStats(userId);
+    } catch (e) {}
   }
 
   void _updateFollowCache(String userId, bool status) {
@@ -79,8 +85,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   Future<void> checkFollowStatus(String userId) async {
-    final response = await _dio.get('/social/is-following/$userId');
-    _updateFollowCache(userId, FollowCheckDto.fromJson(response.data).isFollowing);
+    try {
+      final response = await _dio.get('/social/is-following/$userId');
+      _updateFollowCache(userId, FollowCheckDto.fromJson(response.data).isFollowing);
+    } catch (e) {}
   }
 
   Future<void> getFollowers(String userId) async {
@@ -97,15 +105,19 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   // ====================== LIKE & UNLIKE ======================
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
-    await _dio.post('/social/like', data: {'targetId': targetId, 'targetType': targetType});
-    _updateLikeCache(targetId, true);
-    await getUserStats(targetId);
+    try {
+      await _dio.post('/social/like', data: {'targetId': targetId, 'targetType': targetType});
+      _updateLikeCache(targetId, true);
+      await getUserStats(targetId);
+    } catch (e) {}
   }
 
   Future<void> unlike(String targetId, {String targetType = 'USER'}) async {
-    await _dio.delete('/social/like', data: {'targetId': targetId, 'targetType': targetType});
-    _updateLikeCache(targetId, false);
-    await getUserStats(targetId);
+    try {
+      await _dio.delete('/social/like', data: {'targetId': targetId, 'targetType': targetType});
+      _updateLikeCache(targetId, false);
+      await getUserStats(targetId);
+    } catch (e) {}
   }
 
   void _updateLikeCache(String targetId, bool status) {
@@ -115,19 +127,23 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   Future<void> checkLikeStatus(String targetId, {String targetType = 'USER'}) async {
-    final response = await _dio.get('/social/is-liked', queryParameters: {
-      'targetId': targetId,
-      'targetType': targetType,
-    });
-    _updateLikeCache(targetId, LikeCheckDto.fromJson(response.data).isLiked);
+    try {
+      final response = await _dio.get('/social/is-liked', queryParameters: {
+        'targetId': targetId,
+        'targetType': targetType,
+      });
+      _updateLikeCache(targetId, LikeCheckDto.fromJson(response.data).isLiked);
+    } catch (e) {}
   }
 
-  // ====================== REVIEWS (Full CRUD) ======================
+  // ====================== REVIEWS ======================
   Future<void> getReviews(String targetId, {String targetType = 'USER'}) async {
-    final response = await _dio.get('/social/reviews/$targetId',
-        queryParameters: {'targetType': targetType});
-    final list = (response.data as List).map((e) => ReviewResponseDto.fromJson(e)).toList();
-    state = state.copyWith(reviews: list);
+    try {
+      final response = await _dio.get('/social/reviews/$targetId',
+          queryParameters: {'targetType': targetType});
+      final list = (response.data as List).map((e) => ReviewResponseDto.fromJson(e)).toList();
+      state = state.copyWith(reviews: list);
+    } catch (e) {}
   }
 
   Future<void> addReview(SocialActionRequest request) async {
@@ -150,9 +166,23 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   // ====================== STATS ======================
   Future<void> getUserStats(String userId) async {
-    final response = await _dio.get('/social/stats/$userId');
-    state = state.copyWith(stats: SocialStatsDto.fromJson(response.data));
+    try {
+      final response = await _dio.get('/social/stats/$userId');
+      state = state.copyWith(stats: SocialStatsDto.fromJson(response.data));
+    } catch (e) {}
+  }
+
+  // ====================== HELPER ======================
+  Future<void> refreshAll(String userId) async {
+    await Future.wait([
+      getUserStats(userId),
+      getReviews(userId),
+      checkFollowStatus(userId),
+      checkLikeStatus(userId),
+    ]);
   }
 }
 
-final socialProvider = StateNotifierProvider<SocialNotifier, SocialState>((ref) => SocialNotifier(ref));
+final socialProvider = StateNotifierProvider<SocialNotifier, SocialState>(
+      (ref) => SocialNotifier(ref),
+);
