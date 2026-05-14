@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:garbigo_frontend/core/constants/app_themes.dart';
 import 'package:garbigo_frontend/routing/app_router.dart';
 import 'package:garbigo_frontend/routing/router_notifier.dart';
@@ -13,6 +14,7 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy(); // removes # from URLs
 
   final prefs = await SharedPreferences.getInstance();
 
