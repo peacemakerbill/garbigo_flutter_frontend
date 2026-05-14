@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:garbigo_frontend/core/utils/helpers.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
 import 'package:garbigo_frontend/features/social/models/review_update_request.dart';
+import 'package:garbigo_frontend/features/social/models/user_summary_dto.dart';
 
 class OtherUserProfileScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -13,104 +13,135 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
   const OtherUserProfileScreen({super.key, required this.userId});
 
   @override
-  ConsumerState<OtherUserProfileScreen> createState() => _OtherUserProfileScreenState();
+  ConsumerState<OtherUserProfileScreen> createState() =>
+      _OtherUserProfileScreenState();
 }
 
-class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen> {
-  int _selectedTab = 0; // 0: About, 1: Reviews
+class _OtherUserProfileScreenState
+    extends ConsumerState<OtherUserProfileScreen> {
+  int _selectedTab = 0;
+
+  // Scoped provider for THIS profile only
+  late final _provider = socialProvider(widget.userId);
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
-  }
-
-  Future<void> _loadData() async {
-    final notifier = ref.read(socialProvider.notifier);
-    await notifier.refreshAll(widget.userId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(_provider.notifier).refreshAll(widget.userId);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final socialState = ref.watch(socialProvider);
-    final socialNotifier = ref.read(socialProvider.notifier);
+    final socialState = ref.watch(_provider);
+    final socialNotifier = ref.read(_provider.notifier);
     final currentUser = ref.watch(userProvider).user;
 
     final bool isOwnProfile = currentUser?.id == widget.userId;
-    final bool isFollowing = socialState.followingCache[widget.userId] ?? false;
-    final bool isLiked = socialState.likedCache[widget.userId] ?? false;
-
-    final String displayName = _getDisplayName();
 
     return Scaffold(
       appBar: AppBar(title: const Text('User Profile')),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
+      body: socialState.isLoading && socialState.stats == null
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: () =>
+            ref.read(_provider.notifier).refreshAll(widget.userId),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // Profile Header
-              const CircleAvatar(radius: 50, child: Icon(Icons.person, size: 50)),
+              // ── Profile Header ──────────────────────────────────
+              CircleAvatar(
+                radius: 50,
+                backgroundImage: socialState.stats != null
+                    ? null // replace with network image if you store avatar in stats
+                    : null,
+                child: const Icon(Icons.person, size: 50),
+              ),
               const SizedBox(height: 12),
               Text(
-                displayName,
+                _resolveDisplayName(currentUser, widget.userId),
                 style: Theme.of(context).textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
               Text(
                 widget.userId,
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                style:
+                const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 24),
 
-              // Social Stats
+              // ── Social Stats ────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildStatColumn('Followers', socialState.stats?.followersCount ?? 0,
-                          () => _showUserList(context, 'Followers')),
-                  _buildStatColumn('Following', socialState.stats?.followingCount ?? 0,
-                          () => _showUserList(context, 'Following')),
-                  _buildStatColumn('Likes', socialState.stats?.likesCount ?? 0, null),
-                  _buildStatColumn('Rating',
-                      socialState.stats?.averageRating.toStringAsFixed(1) ?? '0.0', null),
+                  _buildStatColumn(
+                    'Followers',
+                    socialState.stats?.followersCount ?? 0,
+                        () => _showUserList(context, 'Followers'),
+                  ),
+                  _buildStatColumn(
+                    'Following',
+                    socialState.stats?.followingCount ?? 0,
+                        () => _showUserList(context, 'Following'),
+                  ),
+                  _buildStatColumn(
+                      'Likes', socialState.stats?.likesCount ?? 0, null),
+                  _buildStatColumn(
+                    'Rating',
+                    socialState.stats?.averageRating.toStringAsFixed(1) ??
+                        '0.0',
+                    null,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Action Buttons
+              // ── Action Buttons ──────────────────────────────────
               if (!isOwnProfile)
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          if (isFollowing) {
-                            await socialNotifier.unfollow(widget.userId);
+                        onPressed: socialState.isLoading
+                            ? null
+                            : () async {
+                          if (socialState.isFollowing) {
+                            await socialNotifier
+                                .unfollow(widget.userId);
                           } else {
-                            await socialNotifier.follow(widget.userId);
+                            await socialNotifier
+                                .follow(widget.userId);
                           }
-                          await socialNotifier.checkFollowStatus(widget.userId);
                         },
-                        icon: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
-                        label: Text(isFollowing ? 'Unfollow' : 'Follow'),
+                        icon: Icon(
+                          socialState.isFollowing
+                              ? Icons.person_remove
+                              : Icons.person_add,
+                        ),
+                        label: Text(
+                            socialState.isFollowing ? 'Unfollow' : 'Follow'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     IconButton.filledTonal(
-                      onPressed: () async {
-                        if (isLiked) {
-                          await socialNotifier.unlike(widget.userId);
+                      onPressed: socialState.isLoading
+                          ? null
+                          : () async {
+                        if (socialState.isLiked) {
+                          await socialNotifier
+                              .unlike(widget.userId);
                         } else {
                           await socialNotifier.like(widget.userId);
                         }
-                        await socialNotifier.checkLikeStatus(widget.userId);
                       },
                       icon: Icon(
-                        isLiked ? Icons.favorite : Icons.favorite_border,
-                        color: isLiked ? Colors.red : null,
+                        socialState.isLiked
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: socialState.isLiked ? Colors.red : null,
                       ),
                     ),
                   ],
@@ -118,7 +149,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
 
               const SizedBox(height: 32),
 
-              // Tabs
+              // ── Tabs ────────────────────────────────────────────
               Row(
                 children: [
                   _buildTabButton(0, 'About'),
@@ -127,12 +158,13 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
               ),
               const Divider(height: 1),
 
-              // Tab Content
+              // ── Tab Content ─────────────────────────────────────
               IndexedStack(
                 index: _selectedTab,
                 children: [
                   _buildAboutTab(),
-                  _buildReviewsTab(socialState, socialNotifier, isOwnProfile),
+                  _buildReviewsTab(
+                      socialState, socialNotifier, isOwnProfile, currentUser?.id),
                 ],
               ),
             ],
@@ -142,13 +174,32 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
-  String _getDisplayName() {
-    final currentUser = ref.watch(userProvider).user;
-    if (currentUser?.id == widget.userId) {
-      final name = "${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}".trim();
-      return name.isNotEmpty ? name : "User Profile";
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /// Returns a real name when we know it (own profile or from followers list),
+  /// otherwise falls back gracefully.
+  String _resolveDisplayName(dynamic currentUser, String userId) {
+    if (currentUser?.id == userId) {
+      final name =
+      '${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''}'
+          .trim();
+      return name.isNotEmpty ? name : 'My Profile';
     }
-    return "User Profile";
+    // Try to find the user in the cached followers/following lists
+    final allKnown = [
+      ...ref.read(_provider).followersList,
+      ...ref.read(_provider).followingList,
+    ];
+    final match = allKnown.cast<UserSummaryDto?>().firstWhere(
+          (u) => u?.id == userId,
+      orElse: () => null,
+    );
+    if (match != null) {
+      final name =
+      '${match.firstName ?? ''} ${match.lastName ?? ''}'.trim();
+      return name.isNotEmpty ? name : '@${match.username ?? userId}';
+    }
+    return 'User Profile';
   }
 
   Widget _buildStatColumn(String label, dynamic value, VoidCallback? onTap) {
@@ -159,8 +210,11 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
         child: Column(
           children: [
-            Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('$value',
+                style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(label,
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
@@ -186,7 +240,8 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontWeight:
+              isSelected ? FontWeight.bold : FontWeight.normal,
               color: isSelected ? Colors.green : Colors.black,
             ),
           ),
@@ -198,15 +253,19 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
   Widget _buildAboutTab() {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 24),
-      child: Text("No additional user information available."),
+      child: Text('No additional user information available.'),
     );
   }
 
-  Widget _buildReviewsTab(SocialState state, SocialNotifier notifier, bool isOwnProfile) {
-    final currentUserId = ref.watch(userProvider).user?.id;
-
+  Widget _buildReviewsTab(
+      SocialState state,
+      SocialNotifier notifier,
+      bool isOwnProfile,
+      String? currentUserId,
+      ) {
     return Column(
       children: [
+        // Write review button — only for other users' profiles
         if (!isOwnProfile)
           Padding(
             padding: const EdgeInsets.only(top: 16, bottom: 12),
@@ -215,7 +274,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
               child: TextButton.icon(
                 onPressed: () => _showReviewDialog(context, null),
                 icon: const Icon(Icons.add),
-                label: const Text("Write a Review"),
+                label: const Text('Write a Review'),
               ),
             ),
           ),
@@ -223,7 +282,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
         if (state.reviews.isEmpty)
           const Padding(
             padding: EdgeInsets.all(40),
-            child: Text("No reviews yet."),
+            child: Text('No reviews yet.'),
           )
         else
           ListView.builder(
@@ -232,11 +291,17 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
             itemCount: state.reviews.length,
             itemBuilder: (context, index) {
               final review = state.reviews[index];
-              final isMyReview = review.reviewerId == currentUserId && currentUserId != null;
+              final isMyReview =
+                  currentUserId != null && review.reviewerId == currentUserId;
 
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 child: ListTile(
+                  leading: review.reviewerProfilePictureUrl != null
+                      ? CircleAvatar(
+                      backgroundImage: NetworkImage(
+                          review.reviewerProfilePictureUrl!))
+                      : const CircleAvatar(child: Icon(Icons.person)),
                   title: Text(
                     review.reviewerName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -244,24 +309,31 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Rating Stars
+                      const SizedBox(height: 4),
                       Row(
                         children: List.generate(
                           5,
                               (i) => Icon(
                             Icons.star,
-                            size: 18,
-                            color: i < review.rating ? Colors.amber : Colors.grey,
+                            size: 16,
+                            color: i < review.rating
+                                ? Colors.amber
+                                : Colors.grey.shade300,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      // Comment
-                      if (review.comment != null && review.comment!.trim().isNotEmpty)
-                        Text(
-                          review.comment!,
-                          style: const TextStyle(fontSize: 14),
-                        ),
+                      if (review.comment != null &&
+                          review.comment!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(review.comment!,
+                            style: const TextStyle(fontSize: 14)),
+                      ],
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatDate(review.createdAt),
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.grey),
+                      ),
                     ],
                   ),
                   trailing: isMyReview
@@ -270,12 +342,14 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                       if (value == 'edit') {
                         _showReviewDialog(context, review);
                       } else if (value == 'delete') {
-                        notifier.deleteReview(review.id, widget.userId);
+                        _confirmDelete(context, notifier, review.id);
                       }
                     },
                     itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      PopupMenuItem(
+                          value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                          value: 'delete', child: Text('Delete')),
                     ],
                   )
                       : null,
@@ -287,8 +361,38 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _confirmDelete(
+      BuildContext context, SocialNotifier notifier, String reviewId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Review'),
+        content: const Text('Are you sure you want to delete this review?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style:
+            ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              notifier.deleteReview(reviewId, widget.userId);
+            },
+            child:
+            const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showUserList(BuildContext context, String title) {
-    final notifier = ref.read(socialProvider.notifier);
+    final notifier = ref.read(_provider.notifier);
     if (title == 'Followers') {
       notifier.getFollowers(widget.userId);
     } else {
@@ -297,30 +401,46 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
 
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius:
+          BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Consumer(
         builder: (context, ref, child) {
+          final state = ref.watch(_provider);
           final users = title == 'Followers'
-              ? ref.watch(socialProvider).followersList
-              : ref.watch(socialProvider).followingList;
+              ? state.followersList
+              : state.followingList;
+
           return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               const Divider(),
               Expanded(
-                child: users.isEmpty
-                    ? const Center(child: Text("No users found."))
+                child: state.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : users.isEmpty
+                    ? const Center(child: Text('No users found.'))
                     : ListView.builder(
                   itemCount: users.length,
                   itemBuilder: (context, i) {
                     final user = users[i];
                     return ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text("${user.firstName ?? ''} ${user.lastName ?? ''}".trim()),
-                      subtitle: Text("@${user.username ?? 'user'}"),
+                      leading: user.profilePictureUrl != null
+                          ? CircleAvatar(
+                          backgroundImage: NetworkImage(
+                              user.profilePictureUrl!))
+                          : const CircleAvatar(
+                          child: Icon(Icons.person)),
+                      title: Text(
+                          '${user.firstName ?? ''} ${user.lastName ?? ''}'
+                              .trim()),
+                      subtitle:
+                      Text('@${user.username ?? 'user'}'),
                     );
                   },
                 ),
@@ -332,30 +452,39 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
-  void _showReviewDialog(BuildContext context, ReviewResponseDto? existingReview) {
-    int rating = existingReview?.rating ?? 5;
-    final commentController = TextEditingController(text: existingReview?.comment);
+  void _showReviewDialog(BuildContext context, ReviewResponseDto? existing) {
+    int rating = existing?.rating ?? 5;
+    final commentController =
+    TextEditingController(text: existing?.comment);
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setInnerState) => AlertDialog(
-          title: Text(existingReview == null ? "Write a Review" : "Update Review"),
+          title:
+          Text(existing == null ? 'Write a Review' : 'Update Review'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => IconButton(
-                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 32),
-                  onPressed: () => setInnerState(() => rating = i + 1),
-                )),
+                children: List.generate(
+                  5,
+                      (i) => IconButton(
+                    icon: Icon(
+                      Icons.star,
+                      color: i < rating ? Colors.amber : Colors.grey,
+                      size: 32,
+                    ),
+                    onPressed: () => setInnerState(() => rating = i + 1),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: commentController,
                 decoration: const InputDecoration(
-                  hintText: "Your thoughts...",
+                  hintText: 'Your thoughts...',
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 4,
@@ -363,20 +492,23 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                final notifier = ref.read(socialProvider.notifier);
-                if (existingReview == null) {
+                Navigator.pop(ctx);
+                final notifier = ref.read(_provider.notifier);
+                if (existing == null) {
                   await notifier.addReview(SocialActionRequest(
                     targetId: widget.userId,
-                    targetType: "USER",
+                    targetType: 'USER',
                     rating: rating,
                     comment: commentController.text.trim(),
                   ));
                 } else {
                   await notifier.updateReview(
-                    existingReview.id,
+                    existing.id,
                     widget.userId,
                     ReviewUpdateRequest(
                       rating: rating,
@@ -384,10 +516,8 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                     ),
                   );
                 }
-                Navigator.pop(ctx);
-                Helpers.showToast("Success");
               },
-              child: const Text("Submit"),
+              child: const Text('Submit'),
             ),
           ],
         ),
