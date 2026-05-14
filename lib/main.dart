@@ -6,24 +6,14 @@ import 'package:garbigo_frontend/routing/app_router.dart';
 import 'package:garbigo_frontend/routing/router_notifier.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/location/providers/live_location_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError('SharedPreferences not initialized');
-});
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  usePathUrlStrategy(); // removes # from URLs
-
-  final prefs = await SharedPreferences.getInstance();
+  usePathUrlStrategy();
 
   runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-      child: const MyApp(),
+    const ProviderScope(
+      child: MyApp(),
     ),
   );
 }
@@ -33,7 +23,6 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // RouterNotifier holds a Ref internally — no need to pass WidgetRef.
     final notifier = ref.watch(routerNotifierProvider);
     final router = AppRouter.createRouter(notifier);
 

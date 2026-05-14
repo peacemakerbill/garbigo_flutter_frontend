@@ -1,13 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
+import 'package:garbigo_frontend/core/network/api_client.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
 import 'package:garbigo_frontend/features/auth/models/auth_response_model.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import '../../../main.dart';
 import '../../location/providers/live_location_provider.dart';
 
 class AuthState {
@@ -16,6 +16,7 @@ class AuthState {
   final String? token;
   final String? role;
   final bool verified;
+  final bool isRestoring; // true while reading token from storage on startup
 
   AuthState({
     this.isLoading = false,
@@ -23,6 +24,7 @@ class AuthState {
     this.token,
     this.role,
     this.verified = false,
+    this.isRestoring = true,
   });
 
   AuthState copyWith({
@@ -31,6 +33,7 @@ class AuthState {
     String? token,
     String? role,
     bool? verified,
+    bool? isRestoring,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -38,29 +41,51 @@ class AuthState {
       token: token ?? this.token,
       role: role ?? this.role,
       verified: verified ?? this.verified,
+      isRestoring: isRestoring ?? this.isRestoring,
     );
   }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this.ref) : super(AuthState()) {
-    _loadToken();
+    _restoreSession();
   }
 
   final Ref ref;
 
-  Future<void> _loadToken() async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    final token = prefs.getString('auth_token');
-    if (token != null) {
-      state = state.copyWith(token: token);
-      await ref.read(userProvider.notifier).fetchCurrentUser();
+  // ==================== SESSION RESTORE ====================
+
+  /// Reads the token from secure storage on startup.
+  /// Until this completes, [isRestoring] is true so the router
+  /// waits rather than redirecting to sign-in prematurely.
+  Future<void> _restoreSession() async {
+    final storage = ref.read(secureStorageProvider);
+    final token = await storage.read(key: 'auth_token');
+    final role = await storage.read(key: 'auth_role');
+
+    if (token != null && token.isNotEmpty) {
+      state = state.copyWith(
+        token: token,
+        role: role,
+        isRestoring: false,
+      );
+      // Re-fetch the full user profile in the background.
+      // The router will re-evaluate once userProvider emits.
+      ref.read(userProvider.notifier).fetchCurrentUser();
+    } else {
+      state = state.copyWith(isRestoring: false);
     }
   }
 
-  Future<void> _saveToken(String token) async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString('auth_token', token);
+  Future<void> _saveToken(String token, String role) async {
+    final storage = ref.read(secureStorageProvider);
+    await storage.write(key: 'auth_token', value: token);
+    await storage.write(key: 'auth_role', value: role);
+  }
+
+  Future<void> _clearToken() async {
+    final storage = ref.read(secureStorageProvider);
+    await storage.deleteAll();
   }
 
   // ==================== EMAIL AUTH ====================
@@ -75,7 +100,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       });
 
       final auth = AuthResponseModel.fromJson(response.data);
-      await _saveToken(auth.token);
+      await _saveToken(auth.token, auth.role);
 
       state = state.copyWith(
         token: auth.token,
@@ -99,7 +124,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final response = await dio.post('/signup', data: data);
       final auth = AuthResponseModel.fromJson(response.data);
 
-      await _saveToken(auth.token);
+      await _saveToken(auth.token, auth.role);
       state = state.copyWith(
         token: auth.token,
         role: auth.role,
@@ -172,7 +197,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final response = await dio.post('/social/google', data: {'token': googleAuth!.idToken});
 
       final auth = AuthResponseModel.fromJson(response.data);
-      await _saveToken(auth.token);
+      await _saveToken(auth.token, auth.role);
 
       state = state.copyWith(
         token: auth.token,
@@ -198,7 +223,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             data: {'token': result.accessToken!.tokenString});
 
         final auth = AuthResponseModel.fromJson(response.data);
-        await _saveToken(auth.token);
+        await _saveToken(auth.token, auth.role);
 
         state = state.copyWith(
           token: auth.token,
@@ -225,7 +250,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final response = await dio.post('/social/apple', data: {'token': credential.identityToken});
 
       final auth = AuthResponseModel.fromJson(response.data);
-      await _saveToken(auth.token);
+      await _saveToken(auth.token, auth.role);
 
       state = state.copyWith(
         token: auth.token,
@@ -240,11 +265,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> logout() async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.clear();
+  // ==================== LOGOUT ====================
 
-    state = AuthState();
+  Future<void> logout() async {
+    await _clearToken();
+
+    state = AuthState(isRestoring: false);
     ref.read(userProvider.notifier).clear();
     ref.read(liveLocationProvider.notifier).stopTracking();
 

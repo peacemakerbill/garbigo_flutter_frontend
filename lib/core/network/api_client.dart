@@ -1,7 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
+
+/// A single secure storage instance shared across the app.
+final secureStorageProvider = Provider<FlutterSecureStorage>(
+      (_) => const FlutterSecureStorage(),
+);
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(

@@ -11,11 +11,13 @@ class RouterNotifier extends ChangeNotifier {
 
   final Ref _ref;
 
-  /// Called by GoRouter on every navigation event and whenever
-  /// [notifyListeners] fires (i.e. when auth or user state changes).
   String? redirect(String matchedLocation) {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
+
+    // Still reading token from secure storage — don't redirect yet.
+    // The router will re-evaluate once isRestoring flips to false.
+    if (authState.isRestoring) return null;
 
     final isLoggedIn =
         authState.token != null && authState.token!.isNotEmpty;
