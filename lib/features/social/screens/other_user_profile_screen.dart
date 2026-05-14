@@ -19,8 +19,6 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
 
 class _OtherUserProfileScreenState
     extends ConsumerState<OtherUserProfileScreen> {
-  int _selectedTab = 0;
-
   // Scoped provider for THIS profile only
   late final _provider = socialProvider(widget.userId);
 
@@ -56,7 +54,7 @@ class _OtherUserProfileScreenState
               CircleAvatar(
                 radius: 50,
                 backgroundImage: socialState.stats != null
-                    ? null // replace with network image if you store avatar in stats
+                    ? null // TODO: replace with NetworkImage when avatar URL is available
                     : null,
                 child: const Icon(Icons.person, size: 50),
               ),
@@ -68,8 +66,7 @@ class _OtherUserProfileScreenState
               ),
               Text(
                 widget.userId,
-                style:
-                const TextStyle(color: Colors.grey, fontSize: 12),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 24),
 
@@ -121,8 +118,9 @@ class _OtherUserProfileScreenState
                               ? Icons.person_remove
                               : Icons.person_add,
                         ),
-                        label: Text(
-                            socialState.isFollowing ? 'Unfollow' : 'Follow'),
+                        label: Text(socialState.isFollowing
+                            ? 'Unfollow'
+                            : 'Follow'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -149,23 +147,14 @@ class _OtherUserProfileScreenState
 
               const SizedBox(height: 32),
 
-              // ── Tabs ────────────────────────────────────────────
-              Row(
-                children: [
-                  _buildTabButton(0, 'About'),
-                  _buildTabButton(1, 'Reviews'),
-                ],
-              ),
+              // ── Reviews Section (About tab removed) ─────────────────────
+              _buildReviewsHeader(isOwnProfile),
               const Divider(height: 1),
-
-              // ── Tab Content ─────────────────────────────────────
-              IndexedStack(
-                index: _selectedTab,
-                children: [
-                  _buildAboutTab(),
-                  _buildReviewsTab(
-                      socialState, socialNotifier, isOwnProfile, currentUser?.id),
-                ],
+              _buildReviewsTab(
+                socialState,
+                socialNotifier,
+                isOwnProfile,
+                currentUser?.id,
               ),
             ],
           ),
@@ -174,10 +163,26 @@ class _OtherUserProfileScreenState
     );
   }
 
+  Widget _buildReviewsHeader(bool isOwnProfile) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Reviews',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        if (!isOwnProfile)
+          TextButton.icon(
+            onPressed: () => _showReviewDialog(context, null),
+            icon: const Icon(Icons.add),
+            label: const Text('Write a Review'),
+          ),
+      ],
+    );
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// Returns a real name when we know it (own profile or from followers list),
-  /// otherwise falls back gracefully.
   String _resolveDisplayName(dynamic currentUser, String userId) {
     if (currentUser?.id == userId) {
       final name =
@@ -185,7 +190,7 @@ class _OtherUserProfileScreenState
           .trim();
       return name.isNotEmpty ? name : 'My Profile';
     }
-    // Try to find the user in the cached followers/following lists
+
     final allKnown = [
       ...ref.read(_provider).followersList,
       ...ref.read(_provider).followingList,
@@ -221,42 +226,6 @@ class _OtherUserProfileScreenState
     );
   }
 
-  Widget _buildTabButton(int index, String label) {
-    final bool isSelected = _selectedTab == index;
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _selectedTab = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected ? Colors.green : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight:
-              isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.green : Colors.black,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAboutTab() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 24),
-      child: Text('No additional user information available.'),
-    );
-  }
-
   Widget _buildReviewsTab(
       SocialState state,
       SocialNotifier notifier,
@@ -265,20 +234,6 @@ class _OtherUserProfileScreenState
       ) {
     return Column(
       children: [
-        // Write review button — only for other users' profiles
-        if (!isOwnProfile)
-          Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 12),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _showReviewDialog(context, null),
-                icon: const Icon(Icons.add),
-                label: const Text('Write a Review'),
-              ),
-            ),
-          ),
-
         if (state.reviews.isEmpty)
           const Padding(
             padding: EdgeInsets.all(40),
@@ -336,6 +291,7 @@ class _OtherUserProfileScreenState
                       ),
                     ],
                   ),
+                  // Three dots menu (Edit / Delete) for own reviews
                   trailing: isMyReview
                       ? PopupMenuButton<String>(
                     onSelected: (value) {
@@ -377,14 +333,13 @@ class _OtherUserProfileScreenState
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel')),
           ElevatedButton(
-            style:
-            ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(ctx);
               notifier.deleteReview(reviewId, widget.userId);
             },
-            child:
-            const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -402,8 +357,7 @@ class _OtherUserProfileScreenState
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius:
-          BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Consumer(
         builder: (context, ref, child) {
           final state = ref.watch(_provider);
@@ -439,8 +393,7 @@ class _OtherUserProfileScreenState
                       title: Text(
                           '${user.firstName ?? ''} ${user.lastName ?? ''}'
                               .trim()),
-                      subtitle:
-                      Text('@${user.username ?? 'user'}'),
+                      subtitle: Text('@${user.username ?? 'user'}'),
                     );
                   },
                 ),
@@ -461,8 +414,8 @@ class _OtherUserProfileScreenState
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setInnerState) => AlertDialog(
-          title:
-          Text(existing == null ? 'Write a Review' : 'Update Review'),
+          title: Text(
+              existing == null ? 'Write a Review' : 'Update Review'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -476,7 +429,8 @@ class _OtherUserProfileScreenState
                       color: i < rating ? Colors.amber : Colors.grey,
                       size: 32,
                     ),
-                    onPressed: () => setInnerState(() => rating = i + 1),
+                    onPressed: () =>
+                        setInnerState(() => rating = i + 1),
                   ),
                 ),
               ),
