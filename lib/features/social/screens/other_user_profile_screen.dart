@@ -5,6 +5,8 @@ import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
+import 'package:garbigo_frontend/features/social/models/follow_check_dto.dart';
+import 'package:garbigo_frontend/features/social/models/like_check_dto.dart';
 import 'package:go_router/go_router.dart';
 
 class OtherUserProfileScreen extends ConsumerStatefulWidget {
@@ -61,29 +63,74 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                 ),
               ),
 
-              // Social Actions
+              // Dynamic Action Buttons
               if (!isOwnProfile)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        final check = await socialNotifier.isFollowing(widget.userId);
-                        if (check.isFollowing) {
-                          await socialNotifier.unfollow(widget.userId);
-                          Helpers.showToast('Unfollowed successfully');
-                        } else {
-                          await socialNotifier.follow(widget.userId);
-                          Helpers.showToast('Followed successfully');
-                        }
-                        await _loadData();
-                      } catch (e) {
-                        Helpers.showToast('Action failed', isError: true);
-                      }
-                    },
-                    icon: const Icon(Icons.person_add),
-                    label: const Text('Follow / Unfollow'),
-                  ),
+                Row(
+                  children: [
+                    // Follow Button
+                    Expanded(
+                      child: FutureBuilder<FollowCheckDto>(
+                        future: socialNotifier.isFollowing(widget.userId),
+                        builder: (context, snapshot) {
+                          final isFollowing = snapshot.data?.isFollowing ?? false;
+                          return ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                if (isFollowing) {
+                                  await socialNotifier.unfollow(widget.userId);
+                                  Helpers.showToast('Unfollowed successfully');
+                                } else {
+                                  await socialNotifier.follow(widget.userId);
+                                  Helpers.showToast('Followed successfully');
+                                }
+                                await _loadData();
+                              } catch (e) {
+                                Helpers.showToast('Action failed', isError: true);
+                              }
+                            },
+                            icon: Icon(isFollowing ? Icons.person_remove : Icons.person_add),
+                            label: Text(isFollowing ? 'Unfollow' : 'Follow'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isFollowing ? Colors.grey : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Like Button
+                    Expanded(
+                      child: FutureBuilder<LikeCheckDto>(
+                        future: socialNotifier.isLiked(widget.userId, targetType: 'USER'),
+                        builder: (context, snapshot) {
+                          final isLiked = snapshot.data?.isLiked ?? false;
+                          return ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                if (isLiked) {
+                                  await socialNotifier.unlike(widget.userId, targetType: 'USER');
+                                  Helpers.showToast('Unliked');
+                                } else {
+                                  await socialNotifier.like(widget.userId, targetType: 'USER');
+                                  Helpers.showToast('Liked');
+                                }
+                                setState(() {}); // Refresh like status
+                              } catch (e) {
+                                Helpers.showToast('Action failed', isError: true);
+                              }
+                            },
+                            icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
+                            label: Text(isLiked ? 'Unlike' : 'Like'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isLiked ? Colors.red : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
 
               const SizedBox(height: 24),
@@ -98,7 +145,6 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
 
               const SizedBox(height: 20),
 
-              // Tab Content
               if (_selectedTab == 0) _buildAboutTab(),
               if (_selectedTab == 1) _buildReviewsTab(socialNotifier),
             ],
@@ -181,7 +227,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
             ElevatedButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Write Review'),
-              onPressed: () => _showReviewDialog(notifier),
+              onPressed: () => _showAddReviewDialog(notifier),
             ),
           ],
         ),
@@ -193,9 +239,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
               return const Center(child: CircularProgressIndicator());
             }
             final reviews = snapshot.data ?? [];
-            if (reviews.isEmpty) {
-              return const Text('No reviews yet.');
-            }
+            if (reviews.isEmpty) return const Text('No reviews yet.');
 
             return ListView.builder(
               shrinkWrap: true,
@@ -229,7 +273,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
     );
   }
 
-  void _showReviewDialog(SocialNotifier notifier) {
+  void _showAddReviewDialog(SocialNotifier notifier) {
     int rating = 5;
     final commentCtrl = TextEditingController();
 
@@ -245,11 +289,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(5, (i) => IconButton(
-                    icon: Icon(
-                      Icons.star,
-                      color: i < rating ? Colors.amber : Colors.grey,
-                      size: 36,
-                    ),
+                    icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 36),
                     onPressed: () => setInnerState(() => rating = i + 1),
                   )),
                 ),
@@ -258,7 +298,7 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
                   controller: commentCtrl,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    hintText: "Write your review here...",
+                    hintText: "Write your review...",
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -271,14 +311,12 @@ class _OtherUserProfileScreenState extends ConsumerState<OtherUserProfileScreen>
           TextButton(
             onPressed: () async {
               try {
-                await notifier.addReview(
-                  SocialActionRequest(
-                    targetId: widget.userId,
-                    targetType: "USER",
-                    rating: rating,
-                    comment: commentCtrl.text.trim(),
-                  ),
-                );
+                await notifier.addReview(SocialActionRequest(
+                  targetId: widget.userId,
+                  targetType: "USER",
+                  rating: rating,
+                  comment: commentCtrl.text.trim(),
+                ));
                 ctx.pop();
                 await _loadData();
                 Helpers.showToast('Review posted successfully');
