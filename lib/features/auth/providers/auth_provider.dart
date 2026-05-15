@@ -89,7 +89,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ==================== EMAIL AUTH ====================
-
   Future<void> login(String email, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -109,7 +108,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
 
-      // Use user data if available from backend, otherwise fetch
       if (auth.user != null) {
         ref.read(userProvider.notifier).setCurrentUser(auth.user!);
       } else {
@@ -118,8 +116,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       Helpers.showToast('Login successful');
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Login failed', isError: true);
+      String errorMessage = 'Login failed';
+
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMessage = responseData['message'] ??
+              responseData['error'] ??
+              e.response?.statusMessage ??
+              'Invalid credentials';
+        } else if (responseData is String) {
+          errorMessage = responseData;
+        }
+      }
+
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      Helpers.showToast(errorMessage, isError: true);
     }
   }
 
@@ -147,8 +159,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       Helpers.showToast('Signup successful! Please check your email to verify.');
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Signup failed', isError: true);
+      String errorMessage = 'Signup failed';
+
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMessage = responseData['message'] ??
+              responseData['error'] ??
+              'Please check your information';
+        } else if (responseData is String) {
+          errorMessage = responseData;
+        }
+      }
+
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      Helpers.showToast(errorMessage, isError: true);
     }
   }
 
