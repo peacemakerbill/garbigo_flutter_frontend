@@ -50,7 +50,13 @@ class UserNotifier extends StateNotifier<UserState> {
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      Helpers.showToast('Failed to load profile', isError: true);
     }
+  }
+
+  /// Set user directly from login/signup response (avoids extra network call)
+  void setCurrentUser(UserModel user) {
+    state = state.copyWith(user: user, isLoading: false);
   }
 
   // ==================== ADMIN: GET ALL USERS ====================
@@ -71,6 +77,7 @@ class UserNotifier extends StateNotifier<UserState> {
       state = state.copyWith(allUsers: users, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      Helpers.showToast('Failed to load users', isError: true);
     }
   }
 

@@ -1,7 +1,13 @@
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
+import 'package:garbigo_frontend/features/profile/providers/profile_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
+
+import '../../auth/models/user_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -11,9 +17,10 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  bool _isEditing = false;
+  XFile? _selectedImage;
 
-  late TextEditingController _usernameCtrl;
+  // Controllers
   late TextEditingController _firstNameCtrl;
   late TextEditingController _middleNameCtrl;
   late TextEditingController _lastNameCtrl;
@@ -22,45 +29,113 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _wastePrefCtrl;
   late TextEditingController _scheduleCtrl;
 
-  // The current user's ID — needed to scope the family provider
   String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchInitialData());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   void _initializeControllers() {
     final user = ref.read(userProvider).user;
     _currentUserId = user?.id;
-    _usernameCtrl = TextEditingController(text: user?.username ?? '');
+
     _firstNameCtrl = TextEditingController(text: user?.firstName ?? '');
     _middleNameCtrl = TextEditingController(text: user?.middleName ?? '');
     _lastNameCtrl = TextEditingController(text: user?.lastName ?? '');
     _phoneCtrl = TextEditingController(text: user?.phoneNumber ?? '');
     _addressCtrl = TextEditingController(text: user?.homeAddress ?? '');
     _wastePrefCtrl = TextEditingController(text: user?.wastePreferences ?? '');
-    _scheduleCtrl =
-        TextEditingController(text: user?.collectionSchedule ?? '');
+    _scheduleCtrl = TextEditingController(text: user?.collectionSchedule ?? '');
   }
 
-  Future<void> _fetchInitialData() async {
+  Future<void> _loadData() async {
     await ref.read(userProvider.notifier).fetchCurrentUser();
+    final user = ref.read(userProvider).user;
 
-    // After fetching, grab the user id (may have been null on first render)
-    final userId = ref.read(userProvider).user?.id;
-    if (userId != null) {
-      setState(() => _currentUserId = userId);
-      // Load social stats via the scoped family provider
-      await ref.read(socialProvider(userId).notifier).refreshAll(userId);
+    if (user != null) {
+      setState(() => _currentUserId = user.id);
+      if (_currentUserId != null) {
+        ref.read(socialProvider(_currentUserId!).notifier).refreshAll(_currentUserId!);
+      }
+      _syncControllers(user);
     }
+  }
+
+  void _syncControllers(UserModel user) {
+    _firstNameCtrl.text = user.firstName ?? '';
+    _middleNameCtrl.text = user.middleName ?? '';
+    _lastNameCtrl.text = user.lastName ?? '';
+    _phoneCtrl.text = user.phoneNumber ?? '';
+    _addressCtrl.text = user.homeAddress ?? '';
+    _wastePrefCtrl.text = user.wastePreferences ?? '';
+    _scheduleCtrl.text = user.collectionSchedule ?? '';
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (image != null) {
+      setState(() => _selectedImage = image);
+    }
+  }
+
+  ImageProvider? _getProfileImageProvider(UserModel? user) {
+    // Priority 1: Newly selected image
+    if (_selectedImage != null) {
+      if (kIsWeb) {
+        return NetworkImage(_selectedImage!.path); // blob URL on web
+      } else {
+        return FileImage(File(_selectedImage!.path));
+      }
+    }
+
+    // Priority 2: Existing profile picture
+    if (user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty) {
+      return NetworkImage(user.profilePictureUrl);
+    }
+
+    return null;
+  }
+
+  Future<void> _saveChanges() async {
+    final updateData = {
+      'firstName': _firstNameCtrl.text.trim(),
+      'middleName': _middleNameCtrl.text.trim(),
+      'lastName': _lastNameCtrl.text.trim(),
+      'phoneNumber': _phoneCtrl.text.trim(),
+      'homeAddress': _addressCtrl.text.trim(),
+      'wastePreferences': _wastePrefCtrl.text.trim(),
+      'collectionSchedule': _scheduleCtrl.text.trim(),
+    };
+
+    await ref.read(profileProvider.notifier).updateProfile(
+      data: updateData,
+      imageFile: _selectedImage,
+    );
+
+    setState(() {
+      _isEditing = false;
+      _selectedImage = null;
+    });
+  }
+
+  void _cancelEditing() {
+    final user = ref.read(userProvider).user;
+    if (user != null) _syncControllers(user);
+    setState(() {
+      _isEditing = false;
+      _selectedImage = null;
+    });
   }
 
   @override
   void dispose() {
-    _usernameCtrl.dispose();
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
@@ -71,205 +146,169 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _handleUpdate() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final updateData = {
-      'username': _usernameCtrl.text.trim(),
-      'firstName': _firstNameCtrl.text.trim(),
-      'middleName': _middleNameCtrl.text.trim(),
-      'lastName': _lastNameCtrl.text.trim(),
-      'phoneNumber': _phoneCtrl.text.trim(),
-      'homeAddress': _addressCtrl.text.trim(),
-      'wastePreferences': _wastePrefCtrl.text.trim(),
-      'collectionSchedule': _scheduleCtrl.text.trim(),
-    };
-
-    await ref.read(userProvider.notifier).updateProfile(updateData);
-  }
-
   @override
   Widget build(BuildContext context) {
     final userState = ref.watch(userProvider);
+    final profileState = ref.watch(profileProvider);
+    final user = userState.user;
 
-    // Watch the scoped social state — safe to call with null guard
     final socialStats = _currentUserId != null
         ? ref.watch(socialProvider(_currentUserId!)).stats
         : null;
 
-    // Sync controllers when user data updates in background
-    ref.listen(userProvider, (previous, next) {
-      if (previous?.user != next.user && next.user != null) {
-        final u = next.user!;
-        _usernameCtrl.text = u.username ?? '';
-        _firstNameCtrl.text = u.firstName ?? '';
-        _middleNameCtrl.text = u.middleName ?? '';
-        _lastNameCtrl.text = u.lastName ?? '';
-        _phoneCtrl.text = u.phoneNumber ?? '';
-        _addressCtrl.text = u.homeAddress ?? '';
-        _wastePrefCtrl.text = u.wastePreferences ?? '';
-        _scheduleCtrl.text = u.collectionSchedule ?? '';
-
-        // Update userId in case it was null on first render
-        if (_currentUserId == null && u.id.isNotEmpty) {
-          setState(() => _currentUserId = u.id);
-        }
-      }
-    });
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
-        elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_outlined),
-            onPressed: () => ref.read(userProvider.notifier).clear(),
-          ),
+          if (_isEditing)
+            TextButton(
+              onPressed: profileState.isLoading ? null : _cancelEditing,
+              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => setState(() => _isEditing = true),
+            ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _fetchInitialData,
+        onRefresh: _loadData,
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                // ── Avatar ───────────────────────────────────────────
-                Center(
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.green.shade50,
-                    backgroundImage:
-                    userState.user?.profilePictureUrl.isNotEmpty == true
-                        ? NetworkImage(userState.user!.profilePictureUrl)
-                        : null,
-                    child: userState.user?.profilePictureUrl.isEmpty != false
-                        ? const Icon(Icons.person,
-                        size: 50, color: Colors.green)
-                        : null,
-                  ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Profile Picture
+              GestureDetector(
+                onTap: _isEditing ? _pickImage : null,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.green.shade50,
+                      backgroundImage: _getProfileImageProvider(user),
+                      child: (_getProfileImageProvider(user) == null)
+                          ? const Icon(Icons.person, size: 70, color: Colors.green)
+                          : null,
+                    ),
+                    if (_isEditing)
+                      const CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.green,
+                        child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 16),
 
-                // ── Social Stats ─────────────────────────────────────
+              Text(
+                '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
+                    ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
+                    : 'Your Profile',
+                style: Theme.of(context).textTheme.headlineMedium,
+                textAlign: TextAlign.center,
+              ),
+              Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 24),
+
+              // Social Stats
+              if (socialStats != null) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                      ),
-                    ],
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildStatItem(
-                          'Followers', socialStats?.followersCount ?? 0),
-                      _buildStatItem('Likes', socialStats?.likesCount ?? 0),
-                      _buildStatItem(
-                        'Rating',
-                        socialStats?.averageRating.toStringAsFixed(1) ?? '0.0',
-                      ),
+                      _buildStatItem('Followers', socialStats.followersCount),
+                      _buildStatItem('Likes', socialStats.likesCount),
+                      _buildStatItem('Rating', socialStats.averageRating.toStringAsFixed(1)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 32),
+              ],
 
-                // ── Personal Information ─────────────────────────────
-                _buildFieldLabel('Personal Information'),
-                _buildTextField(
-                    _usernameCtrl, 'Username', Icons.alternate_email),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _firstNameCtrl, 'First Name', Icons.person_outline),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _middleNameCtrl, 'Middle Name', Icons.person_outline),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _lastNameCtrl, 'Last Name', Icons.person_outline),
+              // Profile Information
+              _buildInfoSection(user, _isEditing),
 
-                const SizedBox(height: 24),
+              const SizedBox(height: 40),
 
-                // ── Contact & Service ────────────────────────────────
-                _buildFieldLabel('Contact & Service'),
-                _buildTextField(
-                    _phoneCtrl, 'Phone Number', Icons.phone_android),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _addressCtrl, 'Home Address', Icons.map_outlined),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _wastePrefCtrl, 'Waste Preferences', Icons.recycling),
-                const SizedBox(height: 16),
-                _buildTextField(
-                    _scheduleCtrl, 'Collection Schedule', Icons.schedule),
-
-                const SizedBox(height: 40),
-
-                // ── Update Button ────────────────────────────────────
+              if (_isEditing)
                 SizedBox(
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: userState.isLoading ? null : _handleUpdate,
+                    onPressed: profileState.isLoading ? null : _saveChanges,
                     style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: userState.isLoading
-                        ? const CircularProgressIndicator(strokeWidth: 2)
-                        : const Text(
-                      'Update Profile',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: profileState.isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
-                const SizedBox(height: 30),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFieldLabel(String label) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12, left: 4),
-        child: Text(
-          label,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: Colors.green),
-        ),
+  Widget _buildInfoSection(UserModel? user, bool isEditing) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Personal Information'),
+        _buildField('First Name', user?.firstName, _firstNameCtrl, isEditing),
+        _buildField('Middle Name', user?.middleName, _middleNameCtrl, isEditing),
+        _buildField('Last Name', user?.lastName, _lastNameCtrl, isEditing),
+
+        const SizedBox(height: 24),
+        _buildSectionTitle('Contact & Service'),
+        _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, isEditing),
+        _buildField('Home Address', user?.homeAddress, _addressCtrl, isEditing),
+        _buildField('Waste Preferences', user?.wastePreferences, _wastePrefCtrl, isEditing),
+        _buildField('Collection Schedule', user?.collectionSchedule, _scheduleCtrl, isEditing),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green),
       ),
     );
   }
 
-  Widget _buildTextField(
-      TextEditingController ctrl, String label, IconData icon) {
-    return TextFormField(
-      controller: ctrl,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20),
-        border:
-        OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+  Widget _buildField(String label, String? value, TextEditingController ctrl, bool isEditing) {
+    if (!isEditing) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        subtitle: Text(
+          value?.isNotEmpty == true ? value! : 'Not provided',
+          style: const TextStyle(fontSize: 15),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: ctrl,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }
@@ -277,12 +316,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildStatItem(String label, dynamic value) {
     return Column(
       children: [
-        Text('$value',
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label,
-            style:
-            TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+        Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
       ],
     );
   }

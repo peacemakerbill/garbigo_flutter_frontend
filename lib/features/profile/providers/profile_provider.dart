@@ -37,7 +37,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   final Ref ref;
 
   Future<void> updateProfile({
-    Map<String, dynamic>? data,  // ← Now optional (was required, causing the error)
+    Map<String, dynamic>? data,
     XFile? imageFile,
   }) async {
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
@@ -45,35 +45,21 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     try {
       final dio = Dio(BaseOptions(baseUrl: AppConfig.usersBase));
       final token = ref.read(authProvider).token;
-      if (token == null) throw 'Not authenticated';
+      if (token == null) throw Exception('Not authenticated');
 
-      FormData formData = FormData.fromMap(data ?? {}); // Use empty map if no text data
+      final formData = FormData.fromMap(data ?? {});
 
       if (imageFile != null) {
         MultipartFile multipartFile;
 
         if (kIsWeb) {
-          // Web: Use bytes
           final bytes = await imageFile.readAsBytes();
-          multipartFile = MultipartFile.fromBytes(
-            bytes,
-            filename: imageFile.name,
-          );
+          multipartFile = MultipartFile.fromBytes(bytes, filename: imageFile.name);
         } else {
-          // Mobile: Use file path
-          multipartFile = await MultipartFile.fromFile(
-            imageFile.path,
-            filename: imageFile.name,
-          );
+          multipartFile = await MultipartFile.fromFile(imageFile.path, filename: imageFile.name);
         }
 
         formData.files.add(MapEntry('profilePicture', multipartFile));
-      }
-
-      // Prevent empty request
-      if (formData.fields.isEmpty && formData.files.isEmpty) {
-        state = state.copyWith(isLoading: false);
-        return;
       }
 
       await dio.put(
@@ -82,7 +68,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
 
-      // Refresh current user
       await ref.read(userProvider.notifier).fetchCurrentUser();
 
       state = state.copyWith(
@@ -91,16 +76,15 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       );
       Helpers.showToast('Profile updated successfully');
     } catch (e) {
-      String msg = 'Failed to update profile';
-      if (e is DioException) {
-        msg = e.response?.data?['message'] ?? e.message ?? msg;
-      }
+      final msg = e is DioException
+          ? (e.response?.data?['message'] ?? e.message ?? 'Update failed')
+          : e.toString();
       state = state.copyWith(isLoading: false, error: msg);
       Helpers.showToast(msg, isError: true);
     }
   }
 }
 
-final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  return ProfileNotifier(ref);
-});
+final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>(
+      (ref) => ProfileNotifier(ref),
+);

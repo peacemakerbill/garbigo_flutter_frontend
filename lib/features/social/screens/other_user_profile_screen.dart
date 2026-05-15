@@ -41,6 +41,10 @@ class _OtherUserProfileScreenState
     final isOwnProfile = currentUser?.id == widget.userId;
     final displayName = _resolveDisplayName(socialState, currentUser);
 
+    // Debug prints
+    print("DEBUG PROFILE: userId=${widget.userId}, isFollowing=${socialState.isFollowing}, isLiked=${socialState.isLiked}");
+    print("DEBUG REVIEWS COUNT: ${socialState.reviews.length}");
+
     return Scaffold(
       backgroundColor: _kGreenSurface,
       body: socialState.isLoading && socialState.stats == null
@@ -217,7 +221,6 @@ class _OtherUserProfileScreenState
             iconColor: _kGreen,
             onPressed:
             busy ? null : () => _confirmUnfollow(context, notifier),
-            tooltip: 'Tap to unfollow',
           )
               : _GreenFilledButton(
             label: 'Follow',
@@ -308,23 +311,24 @@ class _OtherUserProfileScreenState
       itemCount: state.reviews.length,
       itemBuilder: (context, index) {
         final review = state.reviews[index];
-        final isMyReview =
-            currentUserId != null && review.reviewerId == currentUserId;
+        final isMyReview = currentUserId != null && review.reviewerId == currentUserId;
+
+        print("DEBUG REVIEW: reviewerId=${review.reviewerId}, currentUserId=$currentUserId, isMyReview=$isMyReview");
 
         return _ReviewCard(
           review: review,
           isMyReview: isMyReview,
           onEdit: isMyReview ? () => _showReviewDialog(context, review) : null,
           onDelete: isMyReview
-              ? () => _confirmDelete(context, notifier, review.id)
+              ? () => _confirmDelete(context, notifier, review.id, widget.userId)
               : null,
         );
       },
     );
   }
 
-  void _confirmDelete(
-      BuildContext context, SocialNotifier notifier, String reviewId) {
+  void _confirmDelete(BuildContext context, SocialNotifier notifier,
+      String reviewId, String targetId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -337,7 +341,7 @@ class _OtherUserProfileScreenState
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(ctx);
-              notifier.deleteReview(reviewId, widget.userId);
+              notifier.deleteReview(reviewId, targetId);
             },
             child: const Text('Delete'),
           ),
@@ -353,90 +357,10 @@ class _OtherUserProfileScreenState
           .trim();
       return name.isNotEmpty ? name : 'My Profile';
     }
-
     if (state.profileDisplayName?.isNotEmpty == true) {
       return state.profileDisplayName!;
     }
-
     return 'User Profile';
-  }
-
-  void _showUserList(BuildContext context, String title) {
-    final notifier = ref.read(_provider.notifier);
-    if (title == 'Followers') {
-      notifier.getFollowers(widget.userId);
-    } else {
-      notifier.getFollowing(widget.userId);
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.85,
-        expand: false,
-        builder: (_, scrollController) => Consumer(
-          builder: (context, ref, _) {
-            final state = ref.watch(_provider);
-            final users = title == 'Followers'
-                ? state.followersList
-                : state.followingList;
-            return Column(
-              children: [
-                const SizedBox(height: 8),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(title,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: state.isLoading
-                      ? const Center(
-                      child: CircularProgressIndicator(color: _kGreen))
-                      : users.isEmpty
-                      ? const Center(child: Text('No users found.'))
-                      : ListView.builder(
-                    controller: scrollController,
-                    itemCount: users.length,
-                    itemBuilder: (context, i) {
-                      final user = users[i];
-                      return ListTile(
-                        leading: user.profilePictureUrl != null
-                            ? CircleAvatar(
-                            backgroundImage: NetworkImage(
-                                user.profilePictureUrl!))
-                            : const CircleAvatar(
-                            backgroundColor: _kGreenSurface,
-                            child: Icon(Icons.person,
-                                color: _kGreen)),
-                        title: Text(
-                            '${user.firstName ?? ''} ${user.lastName ?? ''}'
-                                .trim()),
-                        subtitle:
-                        Text('@${user.username ?? 'user'}'),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
   }
 
   void _showReviewDialog(BuildContext context, ReviewResponseDto? existing) {
@@ -527,9 +451,87 @@ class _OtherUserProfileScreenState
       ),
     );
   }
+
+  void _showUserList(BuildContext context, String title) {
+    final notifier = ref.read(_provider.notifier);
+    if (title == 'Followers') {
+      notifier.getFollowers(widget.userId);
+    } else {
+      notifier.getFollowing(widget.userId);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) => Consumer(
+          builder: (context, ref, _) {
+            final state = ref.watch(_provider);
+            final users = title == 'Followers'
+                ? state.followersList
+                : state.followingList;
+            return Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: state.isLoading
+                      ? const Center(
+                      child: CircularProgressIndicator(color: _kGreen))
+                      : users.isEmpty
+                      ? const Center(child: Text('No users found.'))
+                      : ListView.builder(
+                    controller: scrollController,
+                    itemCount: users.length,
+                    itemBuilder: (context, i) {
+                      final user = users[i];
+                      return ListTile(
+                        leading: user.profilePictureUrl != null
+                            ? CircleAvatar(
+                            backgroundImage: NetworkImage(
+                                user.profilePictureUrl!))
+                            : const CircleAvatar(
+                            backgroundColor: _kGreenSurface,
+                            child: Icon(Icons.person,
+                                color: _kGreen)),
+                        title: Text(
+                            '${user.firstName ?? ''} ${user.lastName ?? ''}'
+                                .trim()),
+                        subtitle:
+                        Text('@${user.username ?? 'user'}'),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
-// ==================== REUSABLE WIDGETS ====================
+// ====================== REUSABLE WIDGETS ======================
 
 class _ReviewCard extends StatelessWidget {
   final ReviewResponseDto review;
@@ -674,11 +676,8 @@ class _GreenFilledButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  const _GreenFilledButton({
-    required this.label,
-    required this.icon,
-    this.onPressed,
-  });
+  const _GreenFilledButton(
+      {required this.label, required this.icon, this.onPressed});
 
   @override
   Widget build(BuildContext context) => FilledButton.icon(
@@ -699,31 +698,26 @@ class _GreenOutlinedButton extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final VoidCallback? onPressed;
-  final String? tooltip;
 
   const _GreenOutlinedButton({
     required this.label,
     required this.icon,
     required this.iconColor,
     this.onPressed,
-    this.tooltip,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final btn = OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _kGreen,
-        side: const BorderSide(color: _kGreen, width: 1.5),
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18, color: iconColor),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-    );
-    return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
-  }
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    style: OutlinedButton.styleFrom(
+      foregroundColor: _kGreen,
+      side: const BorderSide(color: _kGreen, width: 1.5),
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    onPressed: onPressed,
+    icon: Icon(icon, size: 18, color: iconColor),
+    label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+  );
 }
 
 class _GreenIconButton extends StatelessWidget {

@@ -46,16 +46,32 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final userState = ref.watch(userProvider);
-    final authNotifier = ref.read(authProvider.notifier);
     final user = userState.user;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Garbigo'),
         actions: [
+          // Profile Icon - Top Right
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () => context.go('/profile'),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage: user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty
+                    ? NetworkImage(user.profilePictureUrl)
+                    : null,
+                child: user?.profilePictureUrl == null || user!.profilePictureUrl.isEmpty
+                    ? const Icon(Icons.person, color: Colors.white, size: 20)
+                    : null,
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Helpers.showLogoutDialog(context, () => authNotifier.logout()),
+            onPressed: () => Helpers.showLogoutDialog(context, () => ref.read(authProvider.notifier).logout()),
           ),
         ],
       ),
@@ -127,18 +143,12 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
             const SizedBox(height: 32),
 
             // Collectors Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Available Collectors',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
+            const Text(
+              'Available Collectors',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            // Collectors List
             FutureBuilder<List<UserModel>>(
               future: _fetchCollectors(_searchQuery),
               builder: (context, snapshot) {
@@ -181,9 +191,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
                         title: Text('${collector.firstName} ${collector.lastName ?? ""}'),
                         subtitle: Text(collector.email),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          context.go('/profile/${collector.id}');
-                        },
+                        onTap: () => context.go('/profile/${collector.id}'),
                       ),
                     );
                   },

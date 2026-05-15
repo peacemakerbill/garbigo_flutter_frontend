@@ -109,7 +109,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
 
-      ref.read(userProvider.notifier).fetchCurrentUser();
+      // Use user data if available from backend, otherwise fetch
+      if (auth.user != null) {
+        ref.read(userProvider.notifier).setCurrentUser(auth.user!);
+      } else {
+        ref.read(userProvider.notifier).fetchCurrentUser();
+      }
+
       Helpers.showToast('Login successful');
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -125,6 +131,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final auth = AuthResponseModel.fromJson(response.data);
 
       await _saveToken(auth.token, auth.role);
+
       state = state.copyWith(
         token: auth.token,
         role: auth.role,
@@ -132,7 +139,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
 
-      ref.read(userProvider.notifier).fetchCurrentUser();
+      if (auth.user != null) {
+        ref.read(userProvider.notifier).setCurrentUser(auth.user!);
+      } else {
+        ref.read(userProvider.notifier).fetchCurrentUser();
+      }
+
       Helpers.showToast('Signup successful! Please check your email to verify.');
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
