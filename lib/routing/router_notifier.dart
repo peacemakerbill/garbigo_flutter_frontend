@@ -15,19 +15,36 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
+    // If the application is still restoring the session, don't redirect anywhere yet
     if (authState.isRestoring) return null;
 
     final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
     final isAuthPath = ['/signin', '/signup', '/verify', '/forgot', '/reset']
         .contains(matchedLocation);
 
-    // Not logged in → go to signin
-    if (!isLoggedIn && !isAuthPath) {
-      return '/signin';
+    // 1. Unauthenticated users must be forced to the authentication paths
+    if (!isLoggedIn) {
+      return isAuthPath ? null : '/signin';
     }
 
-    // Logged in users trying to access auth pages → redirect to dashboard
-    if (isLoggedIn && isAuthPath) {
+    // 2. Authenticated Whitelist: If logged in and hitting a declared valid route,
+    // allow immediate access and bypass any dashboard role-routing logic below.
+    const allowedRoutes = [
+      '/profile',
+      '/dashboard/client',
+      '/dashboard/collector',
+      '/dashboard/operations',
+      '/dashboard/finance',
+      '/dashboard/support',
+      '/admin/dashboard',
+    ];
+
+    if (allowedRoutes.any((route) => matchedLocation == route || matchedLocation.startsWith('$route/'))) {
+      return null;
+    }
+
+    // 3. Logged-in users attempting to hit auth landing pages, or caught in fallback paths ('/' or empty)
+    if (isAuthPath || matchedLocation == '/' || matchedLocation.isEmpty) {
       final role = userState.user?.role ?? authState.role ?? 'CLIENT';
       switch (role) {
         case 'ADMIN':
@@ -46,20 +63,7 @@ class RouterNotifier extends ChangeNotifier {
       }
     }
 
-    // === IMPORTANT: Allow these routes for logged-in users ===
-    const allowedRoutes = [
-      '/profile',
-      '/profile/',
-      '/dashboard/client',
-      '/dashboard/collector',
-      '/admin/dashboard',
-      // Add more routes here as needed
-    ];
-
-    if (isLoggedIn && allowedRoutes.any((route) => matchedLocation.startsWith(route))) {
-      return null; // Allow access
-    }
-
+    // Fallback safe pass-through for unhandled sub-routes
     return null;
   }
 }
