@@ -15,19 +15,18 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // Still reading token from secure storage — don't redirect yet.
-    // The router will re-evaluate once isRestoring flips to false.
     if (authState.isRestoring) return null;
 
-    final isLoggedIn =
-        authState.token != null && authState.token!.isNotEmpty;
+    final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
     final isAuthPath = ['/signin', '/signup', '/verify', '/forgot', '/reset']
         .contains(matchedLocation);
 
-    // Not logged in → go to sign-in
-    if (!isLoggedIn && !isAuthPath) return '/signin';
+    // Not logged in → go to signin
+    if (!isLoggedIn && !isAuthPath) {
+      return '/signin';
+    }
 
-    // Logged in but on an auth page → go to the correct dashboard
+    // Logged in users trying to access auth pages → redirect to dashboard
     if (isLoggedIn && isAuthPath) {
       final role = userState.user?.role ?? authState.role ?? 'CLIENT';
       switch (role) {
@@ -45,6 +44,20 @@ class RouterNotifier extends ChangeNotifier {
         default:
           return '/dashboard/client';
       }
+    }
+
+    // === IMPORTANT: Allow these routes for logged-in users ===
+    const allowedRoutes = [
+      '/profile',
+      '/profile/',
+      '/dashboard/client',
+      '/dashboard/collector',
+      '/admin/dashboard',
+      // Add more routes here as needed
+    ];
+
+    if (isLoggedIn && allowedRoutes.any((route) => matchedLocation.startsWith(route))) {
+      return null; // Allow access
     }
 
     return null;
