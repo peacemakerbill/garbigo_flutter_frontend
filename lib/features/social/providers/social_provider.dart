@@ -23,7 +23,6 @@ class SocialState {
   final List<UserSummaryDto> followersList;
   final List<UserSummaryDto> followingList;
 
-  /// Full name + avatar of the profile being viewed, populated during refreshAll.
   final String? profileDisplayName;
   final String? profileAvatarUrl;
 
@@ -75,7 +74,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   final Ref ref;
 
-  /// Guard flag — prevents concurrent like/follow spam.
   bool _actionInProgress = false;
 
   Dio get _dio {
@@ -85,7 +83,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   // ====================== INIT / RESET ======================
-
   Future<void> refreshAll(String userId) async {
     state = SocialState(currentProfileId: userId, isLoading: true);
 
@@ -100,8 +97,30 @@ class SocialNotifier extends StateNotifier<SocialState> {
     state = state.copyWith(isLoading: false);
   }
 
-  // ====================== FOLLOW ======================
+  // ====================== PROFILE SUMMARY ======================
+  Future<void> _fetchProfileUser(String userId) async {
+    try {
+      final response = await _dio.get('/profile/$userId');
+      final data = response.data as Map<String, dynamic>;
 
+      final summary = UserSummaryDto.fromJson(data);
+
+      state = state.copyWith(
+        profileDisplayName: summary.fullName?.isNotEmpty == true
+            ? summary.fullName
+            : '${summary.firstName ?? ''} ${summary.lastName ?? ''}'.trim(),
+        profileAvatarUrl: summary.profilePictureUrl,
+      );
+    } catch (e) {
+      debugPrint('Profile user fetch error for $userId: $e');
+      state = state.copyWith(
+        profileDisplayName: null,
+        profileAvatarUrl: null,
+      );
+    }
+  }
+
+  // ====================== FOLLOW ======================
   Future<void> follow(String userId) async {
     if (_actionInProgress || state.isFollowing) return;
     _actionInProgress = true;
@@ -145,7 +164,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   // ====================== LIKE ======================
-
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
     if (_actionInProgress || state.isLiked) return;
     _actionInProgress = true;
@@ -191,7 +209,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   // ====================== REVIEWS ======================
-
   Future<void> addReview(SocialActionRequest request) async {
     try {
       final response = await _dio.post('/review', data: request.toJson());
@@ -209,10 +226,8 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> updateReview(
       String reviewId, String targetId, ReviewUpdateRequest request) async {
     try {
-      final response =
-      await _dio.put('/review/$reviewId', data: request.toJson());
-      final msg =
-          _extractMessage(response.data) ?? 'Review updated successfully';
+      final response = await _dio.put('/review/$reviewId', data: request.toJson());
+      final msg = _extractMessage(response.data) ?? 'Review updated successfully';
       await Future.wait([
         _fetchReviews(targetId),
         _fetchStats(targetId),
@@ -239,8 +254,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
-  // ====================== FOLLOWERS / FOLLOWING LISTS ======================
-
+  // ====================== FOLLOWERS / FOLLOWING ======================
   Future<void> getFollowers(String userId) async {
     try {
       final response = await _dio.get('/followers/$userId');
@@ -266,28 +280,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   // ====================== PRIVATE FETCHERS ======================
-
-  /// Fetches the profile user's summary (name, avatar) via the social service.
-  /// Falls back silently if the endpoint is unavailable.
-  Future<void> _fetchProfileUser(String userId) async {
-    try {
-      // Try dedicated profile summary endpoint first.
-      // Adjust the path to match your backend if different.
-      final response = await _dio.get('/profile/$userId');
-      final data = response.data as Map<String, dynamic>;
-      final firstName = data['firstName'] as String? ?? '';
-      final lastName = data['lastName'] as String? ?? '';
-      final displayName = '$firstName $lastName'.trim();
-      state = state.copyWith(
-        profileDisplayName: displayName.isNotEmpty ? displayName : null,
-        profileAvatarUrl: data['profilePictureUrl'] as String?,
-      );
-    } catch (_) {
-      // Endpoint not available — name will fall back to userId display.
-      debugPrint('Profile user fetch skipped for $userId');
-    }
-  }
-
   Future<void> _fetchStats(String userId) async {
     try {
       final response = await _dio.get('/stats/$userId');
@@ -297,8 +289,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
-  Future<void> _fetchReviews(String userId,
-      {String targetType = 'USER'}) async {
+  Future<void> _fetchReviews(String userId, {String targetType = 'USER'}) async {
     try {
       final response = await _dio.get('/reviews/$userId',
           queryParameters: {'targetType': targetType});
@@ -321,8 +312,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
-  Future<void> _fetchLikeStatus(String userId,
-      {String targetType = 'USER'}) async {
+  Future<void> _fetchLikeStatus(String userId, {String targetType = 'USER'}) async {
     try {
       final response = await _dio.get('/is-liked', queryParameters: {
         'targetId': userId,
@@ -336,9 +326,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   // ====================== HELPERS ======================
-
-  /// Extracts a human-readable message from the backend response body.
-  /// Backend returns plain strings or JSON with a "message" key.
   String? _extractMessage(dynamic data) {
     if (data == null) return null;
     if (data is String && data.trim().isNotEmpty) return data.trim();
@@ -363,9 +350,7 @@ StateNotifierProvider.family<SocialNotifier, SocialState, String>(
       (ref, userId) => SocialNotifier(ref),
 );
 
-// ---------------------------------------------------------------------------
-// Extension to cleanly produce updated SocialStatsDto copies
-// ---------------------------------------------------------------------------
+// Stats Extension
 extension _StatsUpdate on SocialStatsDto {
   SocialStatsDto _withFollowers(int count) => SocialStatsDto(
     followersCount: count,
