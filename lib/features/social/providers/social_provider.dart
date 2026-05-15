@@ -15,13 +15,17 @@ import '../models/review_update_request.dart';
 class SocialState {
   final bool isLoading;
   final String? error;
-  final String? currentProfileId; // track which profile this state belongs to
+  final String? currentProfileId;
   final bool isFollowing;
   final bool isLiked;
   final SocialStatsDto? stats;
   final List<ReviewResponseDto> reviews;
   final List<UserSummaryDto> followersList;
   final List<UserSummaryDto> followingList;
+
+  /// Full name + avatar of the profile being viewed, populated during refreshAll.
+  final String? profileDisplayName;
+  final String? profileAvatarUrl;
 
   SocialState({
     this.isLoading = false,
@@ -33,6 +37,8 @@ class SocialState {
     this.reviews = const [],
     this.followersList = const [],
     this.followingList = const [],
+    this.profileDisplayName,
+    this.profileAvatarUrl,
   });
 
   SocialState copyWith({
@@ -45,6 +51,8 @@ class SocialState {
     List<ReviewResponseDto>? reviews,
     List<UserSummaryDto>? followersList,
     List<UserSummaryDto>? followingList,
+    String? profileDisplayName,
+    String? profileAvatarUrl,
   }) {
     return SocialState(
       isLoading: isLoading ?? this.isLoading,
@@ -56,6 +64,8 @@ class SocialState {
       reviews: reviews ?? this.reviews,
       followersList: followersList ?? this.followersList,
       followingList: followingList ?? this.followingList,
+      profileDisplayName: profileDisplayName ?? this.profileDisplayName,
+      profileAvatarUrl: profileAvatarUrl ?? this.profileAvatarUrl,
     );
   }
 }
@@ -65,24 +75,22 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   final Ref ref;
 
-  /// Always use a fresh Dio pointed at the social base URL.
-  /// The shared dioProvider may have its baseUrl mutated elsewhere,
-  /// so we build a dedicated instance here to avoid URL conflicts.
+  /// Guard flag — prevents concurrent like/follow spam.
+  bool _actionInProgress = false;
+
   Dio get _dio {
     final dio = ref.read(dioProvider);
-    dio.options.baseUrl = AppConfig.socialBase; // e.g. "https://api.garbigo.com/social-service"
+    dio.options.baseUrl = AppConfig.socialBase;
     return dio;
   }
 
   // ====================== INIT / RESET ======================
 
-  /// Call this every time a new profile is opened.
-  /// Resets state so stale data from a previous profile never bleeds through.
   Future<void> refreshAll(String userId) async {
-    // Reset to a clean slate for this profile
     state = SocialState(currentProfileId: userId, isLoading: true);
 
     await Future.wait([
+      _fetchProfileUser(userId),
       _fetchStats(userId),
       _fetchReviews(userId),
       _fetchFollowStatus(userId),
@@ -95,24 +103,28 @@ class SocialNotifier extends StateNotifier<SocialState> {
   // ====================== FOLLOW ======================
 
   Future<void> follow(String userId) async {
-    // Optimistic update
+    if (_actionInProgress || state.isFollowing) return;
+    _actionInProgress = true;
     state = state.copyWith(
       isFollowing: true,
-      stats: state.stats?._withFollowers((state.stats!.followersCount + 1)),
+      stats: state.stats?._withFollowers(state.stats!.followersCount + 1),
     );
     try {
-      await _dio.post('/follow/$userId');
-      // Confirm from server
+      final response = await _dio.post('/follow/$userId');
+      final msg = _extractMessage(response.data) ?? 'Followed successfully';
+      Helpers.showToast(msg);
       await _fetchStats(userId);
     } catch (e) {
-      // Roll back
       state = state.copyWith(isFollowing: false);
       _handleError('Follow', e);
+    } finally {
+      _actionInProgress = false;
     }
   }
 
   Future<void> unfollow(String userId) async {
-    // Optimistic update
+    if (_actionInProgress || !state.isFollowing) return;
+    _actionInProgress = true;
     state = state.copyWith(
       isFollowing: false,
       stats: state.stats?._withFollowers(
@@ -120,33 +132,44 @@ class SocialNotifier extends StateNotifier<SocialState> {
       ),
     );
     try {
-      await _dio.delete('/follow/$userId');
+      final response = await _dio.delete('/follow/$userId');
+      final msg = _extractMessage(response.data) ?? 'Unfollowed successfully';
+      Helpers.showToast(msg);
       await _fetchStats(userId);
     } catch (e) {
-      // Roll back
       state = state.copyWith(isFollowing: true);
       _handleError('Unfollow', e);
+    } finally {
+      _actionInProgress = false;
     }
   }
 
   // ====================== LIKE ======================
 
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
+    if (_actionInProgress || state.isLiked) return;
+    _actionInProgress = true;
     state = state.copyWith(
       isLiked: true,
-      stats: state.stats?._withLikes((state.stats!.likesCount + 1)),
+      stats: state.stats?._withLikes(state.stats!.likesCount + 1),
     );
     try {
-      await _dio.post('/like',
+      final response = await _dio.post('/like',
           data: {'targetId': targetId, 'targetType': targetType});
+      final msg = _extractMessage(response.data) ?? 'Liked successfully';
+      Helpers.showToast(msg);
       await _fetchStats(targetId);
     } catch (e) {
       state = state.copyWith(isLiked: false);
       _handleError('Like', e);
+    } finally {
+      _actionInProgress = false;
     }
   }
 
   Future<void> unlike(String targetId, {String targetType = 'USER'}) async {
+    if (_actionInProgress || !state.isLiked) return;
+    _actionInProgress = true;
     state = state.copyWith(
       isLiked: false,
       stats: state.stats?._withLikes(
@@ -154,12 +177,16 @@ class SocialNotifier extends StateNotifier<SocialState> {
       ),
     );
     try {
-      await _dio.delete('/like',
+      final response = await _dio.delete('/like',
           data: {'targetId': targetId, 'targetType': targetType});
+      final msg = _extractMessage(response.data) ?? 'Unliked successfully';
+      Helpers.showToast(msg);
       await _fetchStats(targetId);
     } catch (e) {
       state = state.copyWith(isLiked: true);
       _handleError('Unlike', e);
+    } finally {
+      _actionInProgress = false;
     }
   }
 
@@ -167,12 +194,13 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   Future<void> addReview(SocialActionRequest request) async {
     try {
-      await _dio.post('/review', data: request.toJson());
+      final response = await _dio.post('/review', data: request.toJson());
+      final msg = _extractMessage(response.data) ?? 'Review added successfully';
       await Future.wait([
         _fetchReviews(request.targetId),
         _fetchStats(request.targetId),
       ]);
-      Helpers.showToast('Review added successfully');
+      Helpers.showToast(msg);
     } catch (e) {
       _handleError('Add Review', e);
     }
@@ -181,29 +209,32 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> updateReview(
       String reviewId, String targetId, ReviewUpdateRequest request) async {
     try {
+      final response =
       await _dio.put('/review/$reviewId', data: request.toJson());
+      final msg =
+          _extractMessage(response.data) ?? 'Review updated successfully';
       await Future.wait([
         _fetchReviews(targetId),
         _fetchStats(targetId),
       ]);
-      Helpers.showToast('Review updated successfully');
+      Helpers.showToast(msg);
     } catch (e) {
       _handleError('Update Review', e);
     }
   }
 
   Future<void> deleteReview(String reviewId, String targetId) async {
-    // Optimistic: remove from list immediately
     final previous = state.reviews;
     state = state.copyWith(
       reviews: state.reviews.where((r) => r.id != reviewId).toList(),
     );
     try {
-      await _dio.delete('/review/$reviewId');
+      final response = await _dio.delete('/review/$reviewId');
+      final msg = _extractMessage(response.data) ?? 'Review deleted';
       await _fetchStats(targetId);
-      Helpers.showToast('Review deleted');
+      Helpers.showToast(msg);
     } catch (e) {
-      state = state.copyWith(reviews: previous); // roll back
+      state = state.copyWith(reviews: previous);
       _handleError('Delete Review', e);
     }
   }
@@ -236,6 +267,27 @@ class SocialNotifier extends StateNotifier<SocialState> {
 
   // ====================== PRIVATE FETCHERS ======================
 
+  /// Fetches the profile user's summary (name, avatar) via the social service.
+  /// Falls back silently if the endpoint is unavailable.
+  Future<void> _fetchProfileUser(String userId) async {
+    try {
+      // Try dedicated profile summary endpoint first.
+      // Adjust the path to match your backend if different.
+      final response = await _dio.get('/profile/$userId');
+      final data = response.data as Map<String, dynamic>;
+      final firstName = data['firstName'] as String? ?? '';
+      final lastName = data['lastName'] as String? ?? '';
+      final displayName = '$firstName $lastName'.trim();
+      state = state.copyWith(
+        profileDisplayName: displayName.isNotEmpty ? displayName : null,
+        profileAvatarUrl: data['profilePictureUrl'] as String?,
+      );
+    } catch (_) {
+      // Endpoint not available — name will fall back to userId display.
+      debugPrint('Profile user fetch skipped for $userId');
+    }
+  }
+
   Future<void> _fetchStats(String userId) async {
     try {
       final response = await _dio.get('/stats/$userId');
@@ -250,8 +302,9 @@ class SocialNotifier extends StateNotifier<SocialState> {
     try {
       final response = await _dio.get('/reviews/$userId',
           queryParameters: {'targetType': targetType});
-      final list =
-      (response.data as List).map((e) => ReviewResponseDto.fromJson(e)).toList();
+      final list = (response.data as List)
+          .map((e) => ReviewResponseDto.fromJson(e))
+          .toList();
       state = state.copyWith(reviews: list);
     } catch (e) {
       debugPrint('Reviews fetch error: $e');
@@ -275,18 +328,29 @@ class SocialNotifier extends StateNotifier<SocialState> {
         'targetId': userId,
         'targetType': targetType,
       });
-      state =
-          state.copyWith(isLiked: LikeCheckDto.fromJson(response.data).isLiked);
+      state = state.copyWith(
+          isLiked: LikeCheckDto.fromJson(response.data).isLiked);
     } catch (e) {
       debugPrint('Like status error: $e');
     }
   }
 
-  // ====================== ERROR HELPER ======================
+  // ====================== HELPERS ======================
+
+  /// Extracts a human-readable message from the backend response body.
+  /// Backend returns plain strings or JSON with a "message" key.
+  String? _extractMessage(dynamic data) {
+    if (data == null) return null;
+    if (data is String && data.trim().isNotEmpty) return data.trim();
+    if (data is Map) return data['message'] as String?;
+    return null;
+  }
 
   void _handleError(String action, dynamic e) {
     final msg = e is DioException
-        ? (e.response?.data?['message'] ?? e.message ?? e.toString())
+        ? (e.response?.data is Map
+        ? (e.response!.data['message'] ?? e.message ?? e.toString())
+        : (e.response?.data?.toString() ?? e.message ?? e.toString()))
         : e.toString();
     state = state.copyWith(error: msg);
     Helpers.showToast('$action failed: $msg', isError: true);
@@ -294,8 +358,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 }
 
-/// Per-profile scoped provider — pass the userId as the family argument.
-/// This guarantees each profile gets its own isolated state with no bleed-over.
 final socialProvider =
 StateNotifierProvider.family<SocialNotifier, SocialState, String>(
       (ref, userId) => SocialNotifier(ref),
