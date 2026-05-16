@@ -7,6 +7,7 @@ import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/profile/providers/profile_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 
+import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -35,7 +36,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void initState() {
     super.initState();
     _initializeControllers();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+
+    // Safe delayed load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   void _initializeControllers() {
@@ -52,15 +57,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    await ref.read(userProvider.notifier).fetchCurrentUser();
-    final user = ref.read(userProvider).user;
+    if (!mounted) return;
 
-    if (user != null) {
-      setState(() => _currentUserId = user.id);
-      if (_currentUserId != null) {
-        ref.read(socialProvider(_currentUserId!).notifier).refreshAll(_currentUserId!);
+    try {
+      await ref.read(userProvider.notifier).fetchCurrentUser();
+
+      if (!mounted) return;
+
+      final user = ref.read(userProvider).user;
+
+      if (user != null) {
+        setState(() => _currentUserId = user.id);
+
+        if (_currentUserId != null) {
+          ref.read(socialProvider(_currentUserId!).notifier).refreshAll(_currentUserId!);
+        }
+
+        _syncControllers(user);
       }
-      _syncControllers(user);
+    } catch (e) {
+      if (mounted) {
+        Helpers.showToast('Failed to load profile', isError: true);
+      }
     }
   }
 
@@ -80,22 +98,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       source: ImageSource.gallery,
       imageQuality: 80,
     );
-    if (image != null) {
+    if (image != null && mounted) {
       setState(() => _selectedImage = image);
     }
   }
 
   ImageProvider? _getProfileImageProvider(UserModel? user) {
-    // Priority 1: Newly selected image
     if (_selectedImage != null) {
       if (kIsWeb) {
-        return NetworkImage(_selectedImage!.path); // blob URL on web
+        return NetworkImage(_selectedImage!.path);
       } else {
         return FileImage(File(_selectedImage!.path));
       }
     }
 
-    // Priority 2: Existing profile picture
     if (user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty) {
       return NetworkImage(user.profilePictureUrl);
     }
@@ -104,6 +120,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _saveChanges() async {
+    if (!mounted) return;
+
     final updateData = {
       'firstName': _firstNameCtrl.text.trim(),
       'middleName': _middleNameCtrl.text.trim(),
@@ -119,15 +137,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       imageFile: _selectedImage,
     );
 
-    setState(() {
-      _isEditing = false;
-      _selectedImage = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isEditing = false;
+        _selectedImage = null;
+      });
+    }
   }
 
   void _cancelEditing() {
+    if (!mounted) return;
+
     final user = ref.read(userProvider).user;
     if (user != null) _syncControllers(user);
+
     setState(() {
       _isEditing = false;
       _selectedImage = null;

@@ -1,282 +1,574 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/core/network/api_client.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
+
+import 'package:garbigo_frontend/features/auth/models/user_model.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
-import 'package:garbigo_frontend/features/auth/models/user_model.dart';
 
 class ClientDashboardScreen extends ConsumerStatefulWidget {
   const ClientDashboardScreen({super.key});
 
   @override
-  ConsumerState<ClientDashboardScreen> createState() => _ClientDashboardScreenState();
+  ConsumerState<ClientDashboardScreen> createState() =>
+      _ClientDashboardScreenState();
 }
 
-class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
+class _ClientDashboardScreenState
+    extends ConsumerState<ClientDashboardScreen> {
   int _currentIndex = 0;
+
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
   String _searchQuery = '';
 
-  final List<String> _titles = ['Home', 'Schedule', 'History', 'Profile'];
+  final List<String> _titles = const [
+    'Home',
+    'Schedule Pickup',
+    'History',
+    'Profile',
+  ];
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<List<UserModel>> _fetchCollectors(String? search) async {
+  /// ---------------------------
+  /// FETCH COLLECTORS
+  /// ---------------------------
+  Future<List<UserModel>> _fetchCollectors() async {
     try {
       final dio = ref.read(dioProvider);
       dio.options.baseUrl = AppConfig.baseUrl;
 
       final response = await dio.get(
         '/users/collectors',
-        queryParameters: search != null && search.isNotEmpty ? {'search': search} : null,
+        queryParameters:
+        _searchQuery.isNotEmpty ? {'search': _searchQuery} : null,
       );
 
       final List<dynamic> data = response.data;
-      return data.map((json) => UserModel.fromJson(json)).toList();
+
+      return data
+          .map((json) => UserModel.fromJson(json))
+          .toList();
     } catch (e) {
-      Helpers.showToast('Failed to load collectors', isError: true);
+      Helpers.showToast(
+        'Failed to load collectors',
+        isError: true,
+      );
+
       return [];
     }
   }
 
-  Widget _buildBody() {
-    switch (_currentIndex) {
-      case 0: // Home
-        return _buildHomeContent();
-      case 1: // Schedule
-        return const Center(child: Text('Schedule Pickup\n\nComing Soon...', style: TextStyle(fontSize: 24)));
-      case 2: // History
-        return const Center(child: Text('Pickup History\n\nComing Soon...', style: TextStyle(fontSize: 24)));
-      case 3: // Profile
-        return const Center(child: Text('Profile Section\n\nUse top right icon', style: TextStyle(fontSize: 20)));
-      default:
-        return _buildHomeContent();
-    }
-  }
+  /// ---------------------------
+  /// SEARCH DEBOUNCE
+  /// ---------------------------
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
 
-  Widget _buildHomeContent() {
-    final user = ref.watch(userProvider).user;
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+          () {
+        if (!mounted) return;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Hello, ${user?.firstName ?? "Client"} 👋',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Find trusted waste collectors near you',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-
-          // Search Bar
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search collectors by name...',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                _searchController.clear();
-                setState(() => _searchQuery = '');
-              })
-                  : null,
-            ),
-            onChanged: (value) => setState(() => _searchQuery = value.trim()),
-          ),
-          const SizedBox(height: 32),
-
-          // Quick Actions
-          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildQuickAction(Icons.schedule, 'Schedule', Colors.blue, () => setState(() => _currentIndex = 1)),
-              const SizedBox(width: 12),
-              _buildQuickAction(Icons.history, 'History', Colors.orange, () => setState(() => _currentIndex = 2)),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          // Collectors
-          const Text('Available Collectors', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-
-          FutureBuilder<List<UserModel>>(
-            future: _fetchCollectors(_searchQuery),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No collectors found')));
-              }
-
-              final collectors = snapshot.data!;
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: collectors.length,
-                itemBuilder: (context, index) {
-                  final collector = collectors[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: collector.profilePictureUrl.isNotEmpty
-                            ? NetworkImage(collector.profilePictureUrl)
-                            : null,
-                        child: collector.profilePictureUrl.isEmpty ? const Icon(Icons.person) : null,
-                      ),
-                      title: Text('${collector.firstName} ${collector.lastName ?? ""}'),
-                      subtitle: Text(collector.email),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.go('/profile/${collector.id}'),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      ),
+        setState(() {
+          _searchQuery = value.trim();
+        });
+      },
     );
   }
 
-  Widget _buildQuickAction(IconData icon, String title, Color color, VoidCallback onTap) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.3)),
+  Future<void> _refreshDashboard() async {
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  /// ---------------------------
+  /// APP BAR
+  /// ---------------------------
+  PreferredSizeWidget _buildAppBar(UserModel? user) {
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      title: Text(
+        _titles[_currentIndex],
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.person,
+            color: Colors.black,
           ),
-          child: Column(
-            children: [
-              Icon(icon, size: 32, color: color),
-              const SizedBox(height: 12),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
+          onPressed: () {
+            context.go('/profile');
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.logout,
+            color: Colors.black,
           ),
+          onPressed: () {
+            Helpers.showLogoutDialog(
+              context,
+                  () => ref.read(authProvider.notifier).logout(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  /// ---------------------------
+  /// SIDEBAR BUTTON
+  /// ---------------------------
+  Widget _sidebarButton(
+      IconData icon,
+      String title,
+      int index,
+      ) {
+    final bool selected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        if (!mounted) return;
+
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 6,
+        ),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.green.withOpacity(0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(width: 14),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight:
+                selected ? FontWeight.bold : FontWeight.normal,
+                color: Colors.black,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final user = ref.watch(userProvider).user;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isLargeScreen = constraints.maxWidth > 900;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Garbigo'),
-            actions: [
-              // Profile Avatar - Top Right
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: GestureDetector(
-                  onTap: () => context.go('/profile'),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.grey.shade300,
-                    backgroundImage: user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty
-                        ? NetworkImage(user.profilePictureUrl)
-                        : null,
-                    child: (user?.profilePictureUrl == null || user!.profilePictureUrl.isEmpty)
-                        ? const Icon(Icons.person, color: Colors.white, size: 22)
-                        : null,
+  /// ---------------------------
+  /// SIDEBAR
+  /// ---------------------------
+  Widget _buildSidebar() {
+    return Container(
+      width: 250,
+      color: Colors.white,
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: const [
+                Icon(
+                  Icons.recycling,
+                  color: Colors.green,
+                  size: 30,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Garbigo',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => Helpers.showLogoutDialog(context, () => ref.read(authProvider.notifier).logout()),
-              ),
-            ],
+              ],
+            ),
           ),
-
-          // Sidebar for large screens
-          body: isLargeScreen
-              ? Row(
-            children: [
-              // Sidebar
-              Container(
-                width: 280,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    _buildSidebarItem(Icons.home, 'Home', 0),
-                    _buildSidebarItem(Icons.schedule, 'Schedule Pickup', 1),
-                    _buildSidebarItem(Icons.history, 'My History', 2),
-                    _buildSidebarItem(Icons.person, 'My Profile', 3),
-                    const Spacer(),
-                    const Divider(),
-                    const ListTile(
-                      leading: Icon(Icons.recycling, color: Colors.green),
-                      title: Text('Garbigo'),
-                      subtitle: Text('v1.0'),
-                    ),
-                  ],
-                ),
-              ),
-              // Main Content
-              Expanded(child: _buildBody()),
-            ],
-          )
-              : _buildBody(), // Mobile: Just body
-
-          // Bottom Navigation for small screens
-          bottomNavigationBar: isLargeScreen
-              ? null
-              : BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) => setState(() => _currentIndex = index),
-            selectedItemColor: Colors.green,
-            unselectedItemColor: Colors.grey,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedule'),
-              BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-            ],
-          ),
-        );
-      },
+          const Divider(),
+          _sidebarButton(Icons.home, 'Home', 0),
+          _sidebarButton(Icons.schedule, 'Schedule Pickup', 1),
+          _sidebarButton(Icons.history, 'History', 2),
+          _sidebarButton(Icons.person, 'Profile', 3),
+        ],
+      ),
     );
   }
 
-  Widget _buildSidebarItem(IconData icon, String title, int index) {
-    final isSelected = _currentIndex == index;
-    return ListTile(
-      leading: Icon(icon, color: isSelected ? Colors.green : Colors.grey),
-      title: Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      tileColor: isSelected ? Colors.green.withOpacity(0.1) : null,
-      onTap: () => setState(() => _currentIndex = index),
+  /// ---------------------------
+  /// STAT CARD
+  /// ---------------------------
+  Widget _buildStatCard(
+      String title,
+      String value,
+      IconData icon,
+      ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 34,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(title),
+        ],
+      ),
+    );
+  }
+
+  /// ---------------------------
+  /// COLLECTOR CARD
+  /// ---------------------------
+  Widget _collectorCard(UserModel collector) {
+    return GestureDetector(
+      onTap: () {
+        context.go('/profile/${collector.id}');
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundImage:
+              collector.profilePictureUrl.isNotEmpty
+                  ? NetworkImage(collector.profilePictureUrl)
+                  : null,
+              child: collector.profilePictureUrl.isEmpty
+                  ? const Icon(Icons.person)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${collector.firstName} ${collector.lastName ?? ""}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    collector.email,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ---------------------------
+  /// HOME PAGE
+  /// ---------------------------
+  Widget _buildHomeContent(bool isTablet) {
+    final user = ref.watch(userProvider).user;
+
+    return RefreshIndicator(
+      onRefresh: _refreshDashboard,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hello, ${user?.firstName ?? "Client"} 👋',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Find trusted waste collectors near you',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            /// SEARCH
+            TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search collectors...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+
+                    if (!mounted) return;
+
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                  child: const Icon(Icons.clear),
+                )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            /// STATS
+            GridView.count(
+              crossAxisCount: isTablet ? 3 : 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              children: [
+                _buildStatCard(
+                  'Collectors',
+                  '120+',
+                  Icons.people,
+                ),
+                _buildStatCard(
+                  'Pickups',
+                  '58',
+                  Icons.local_shipping,
+                ),
+                _buildStatCard(
+                  'Recycled',
+                  '1.2T',
+                  Icons.recycling,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+
+            const Text(
+              'Available Collectors',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            FutureBuilder<List<UserModel>>(
+              future: _fetchCollectors(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                final collectors = snapshot.data ?? [];
+
+                if (collectors.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                      child: Text('No collectors found'),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: collectors
+                      .map((collector) =>
+                      _collectorCard(collector))
+                      .toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ---------------------------
+  /// BODY SWITCHER
+  /// ---------------------------
+  Widget _buildBody(bool isTablet) {
+    switch (_currentIndex) {
+      case 0:
+        return _buildHomeContent(isTablet);
+
+      case 1:
+        return const Center(
+          child: Text(
+            'Schedule Pickup\n\nComing Soon...',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 22),
+          ),
+        );
+
+      case 2:
+        return const Center(
+          child: Text(
+            'Pickup History\n\nComing Soon...',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 22),
+          ),
+        );
+
+      case 3:
+        return const Center(
+          child: Text(
+            'Profile Section\n\nUse top-right icon',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 20),
+          ),
+        );
+
+      default:
+        return _buildHomeContent(isTablet);
+    }
+  }
+
+  /// ---------------------------
+  /// MOBILE BOTTOM NAV
+  /// ---------------------------
+  Widget _buildBottomNav() {
+    return BottomNavigationBar(
+      currentIndex: _currentIndex,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Colors.green,
+      unselectedItemColor: Colors.grey,
+      onTap: (index) {
+        if (!mounted) return;
+
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.schedule),
+          label: 'Schedule',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.history),
+          label: 'History',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.person),
+          label: 'Profile',
+        ),
+      ],
+    );
+  }
+
+  /// ---------------------------
+  /// MAIN BUILD
+  /// ---------------------------
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(userProvider).user;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final bool isDesktop = screenWidth > 900;
+    final bool isTablet = screenWidth > 700;
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: _buildAppBar(user),
+
+      body: Row(
+        children: [
+          if (isDesktop) _buildSidebar(),
+
+          Expanded(
+            child: _buildBody(isTablet),
+          ),
+        ],
+      ),
+
+      bottomNavigationBar:
+      isDesktop ? null : _buildBottomNav(),
     );
   }
 }

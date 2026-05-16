@@ -15,20 +15,21 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // If the application is still restoring the session, don't redirect anywhere yet
-    if (authState.isRestoring) return null;
+    // Still restoring session → don't redirect
+    if (authState.isRestoring) {
+      return null;
+    }
 
     final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
     final isAuthPath = ['/signin', '/signup', '/verify', '/forgot', '/reset']
         .contains(matchedLocation);
 
-    // 1. Unauthenticated users must be forced to the authentication paths
+    // 1. Unauthenticated users → force login
     if (!isLoggedIn) {
       return isAuthPath ? null : '/signin';
     }
 
-    // 2. Authenticated Whitelist: If logged in and hitting a declared valid route,
-    // allow immediate access and bypass any dashboard role-routing logic below.
+    // 2. Protected routes that are always allowed when logged in
     const allowedRoutes = [
       '/profile',
       '/dashboard/client',
@@ -37,13 +38,18 @@ class RouterNotifier extends ChangeNotifier {
       '/dashboard/finance',
       '/dashboard/support',
       '/admin/dashboard',
+      '/admin/users',
     ];
 
-    if (allowedRoutes.any((route) => matchedLocation == route || matchedLocation.startsWith('$route/'))) {
-      return null;
+    final isAllowedRoute = allowedRoutes.any((route) =>
+    matchedLocation == route ||
+        matchedLocation.startsWith('$route/'));
+
+    if (isAllowedRoute) {
+      return null; // Allow access
     }
 
-    // 3. Logged-in users attempting to hit auth landing pages, or caught in fallback paths ('/' or empty)
+    // 3. Default dashboard redirect (only for root or auth pages)
     if (isAuthPath || matchedLocation == '/' || matchedLocation.isEmpty) {
       final role = userState.user?.role ?? authState.role ?? 'CLIENT';
       switch (role) {
@@ -63,7 +69,7 @@ class RouterNotifier extends ChangeNotifier {
       }
     }
 
-    // Fallback safe pass-through for unhandled sub-routes
+    // Fallback: allow other routes
     return null;
   }
 }
