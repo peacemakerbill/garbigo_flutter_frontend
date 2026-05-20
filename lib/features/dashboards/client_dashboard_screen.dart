@@ -12,6 +12,8 @@ import 'package:garbigo_frontend/features/auth/models/user_model.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 
+import 'client_widgets/client_sidebar.dart';   // Adjust path as needed
+
 class ClientDashboardScreen extends ConsumerStatefulWidget {
   const ClientDashboardScreen({super.key});
 
@@ -43,9 +45,7 @@ class _ClientDashboardScreenState
     super.dispose();
   }
 
-  /// ---------------------------
-  /// FETCH COLLECTORS
-  /// ---------------------------
+  /// --------------------------- FETCH COLLECTORS
   Future<List<UserModel>> _fetchCollectors() async {
     try {
       final dio = ref.read(dioProvider);
@@ -58,47 +58,27 @@ class _ClientDashboardScreenState
       );
 
       final List<dynamic> data = response.data;
-
-      return data
-          .map((json) => UserModel.fromJson(json))
-          .toList();
+      return data.map((json) => UserModel.fromJson(json)).toList();
     } catch (e) {
-      Helpers.showToast(
-        'Failed to load collectors',
-        isError: true,
-      );
-
+      Helpers.showToast('Failed to load collectors', isError: true);
       return [];
     }
   }
 
-  /// ---------------------------
-  /// SEARCH DEBOUNCE
-  /// ---------------------------
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-
-    _debounce = Timer(
-      const Duration(milliseconds: 400),
-          () {
-        if (!mounted) return;
-
-        setState(() {
-          _searchQuery = value.trim();
-        });
-      },
-    );
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value.trim());
+    });
   }
 
   Future<void> _refreshDashboard() async {
     if (!mounted) return;
-
     setState(() {});
   }
 
-  /// ---------------------------
-  /// APP BAR
-  /// ---------------------------
+  /// --------------------------- APP BAR
   PreferredSizeWidget _buildAppBar(UserModel? user) {
     return AppBar(
       automaticallyImplyLeading: false,
@@ -113,19 +93,11 @@ class _ClientDashboardScreenState
       ),
       actions: [
         IconButton(
-          icon: const Icon(
-            Icons.person,
-            color: Colors.black,
-          ),
-          onPressed: () {
-            context.go('/profile');
-          },
+          icon: const Icon(Icons.person, color: Colors.black),
+          onPressed: () => context.go('/profile'),
         ),
         IconButton(
-          icon: const Icon(
-            Icons.logout,
-            color: Colors.black,
-          ),
+          icon: const Icon(Icons.logout, color: Colors.black),
           onPressed: () {
             Helpers.showLogoutDialog(
               context,
@@ -137,195 +109,12 @@ class _ClientDashboardScreenState
     );
   }
 
-  /// ---------------------------
-  /// SIDEBAR BUTTON
-  /// ---------------------------
-  Widget _sidebarButton(
-      IconData icon,
-      String title,
-      int index,
-      ) {
-    final bool selected = _currentIndex == index;
-
-    return GestureDetector(
-      onTap: () {
-        if (!mounted) return;
-
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selected
-              ? Colors.green.withOpacity(0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: selected ? Colors.green : Colors.grey,
-            ),
-            const SizedBox(width: 14),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight:
-                selected ? FontWeight.bold : FontWeight.normal,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// ---------------------------
-  /// SIDEBAR
-  /// ---------------------------
-  Widget _buildSidebar() {
-    return Container(
-      width: 250,
-      color: Colors.white,
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: const [
-                Icon(
-                  Icons.recycling,
-                  color: Colors.green,
-                  size: 30,
-                ),
-                SizedBox(width: 10),
-                Text(
-                  'Garbigo',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-          _sidebarButton(Icons.home, 'Home', 0),
-          _sidebarButton(Icons.schedule, 'Schedule Pickup', 1),
-          _sidebarButton(Icons.history, 'History', 2),
-          _sidebarButton(Icons.person, 'Profile', 3),
-        ],
-      ),
-    );
-  }
-
-  /// ---------------------------
-  /// STAT CARD
-  /// ---------------------------
-  Widget _buildStatCard(
-      String title,
-      String value,
-      IconData icon,
-      ) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 34,
-            color: Colors.green,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(title),
-        ],
-      ),
-    );
-  }
-
-  /// ---------------------------
-  /// COLLECTOR CARD
-  /// ---------------------------
-  Widget _collectorCard(UserModel collector) {
-    return GestureDetector(
-      onTap: () {
-        context.go('/profile/${collector.id}');
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundImage:
-              collector.profilePictureUrl.isNotEmpty
-                  ? NetworkImage(collector.profilePictureUrl)
-                  : null,
-              child: collector.profilePictureUrl.isEmpty
-                  ? const Icon(Icons.person)
-                  : null,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${collector.firstName} ${collector.lastName ?? ""}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    collector.email,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// ---------------------------
-  /// HOME PAGE
-  /// ---------------------------
+  /// --------------------------- HOME CONTENT (Enhanced Welcome)
   Widget _buildHomeContent(bool isTablet) {
     final user = ref.watch(userProvider).user;
+
+    final fullName = (user?.firstName ?? '') +
+        ((user?.lastName?.isNotEmpty ?? false) ? ' ${user!.lastName}' : '');
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
@@ -335,14 +124,13 @@ class _ClientDashboardScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Enhanced Welcome
             Text(
-              'Hello, ${user?.firstName ?? "Client"} 👋',
+              'Hello, ${fullName.isNotEmpty ? fullName : "Client"} 👋',
               style: Theme.of(context)
                   .textTheme
                   .headlineMedium
-                  ?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
@@ -354,7 +142,7 @@ class _ClientDashboardScreenState
             ),
             const SizedBox(height: 24),
 
-            /// SEARCH
+            // Search
             TextField(
               controller: _searchController,
               onChanged: _onSearchChanged,
@@ -365,21 +153,15 @@ class _ClientDashboardScreenState
                     ? GestureDetector(
                   onTap: () {
                     _searchController.clear();
-
                     if (!mounted) return;
-
-                    setState(() {
-                      _searchQuery = '';
-                    });
+                    setState(() => _searchQuery = '');
                   },
                   child: const Icon(Icons.clear),
                 )
                     : null,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -389,29 +171,17 @@ class _ClientDashboardScreenState
 
             const SizedBox(height: 24),
 
-            /// STATS
+            // Stats
             GridView.count(
               crossAxisCount: isTablet ? 3 : 2,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              children: [
-                _buildStatCard(
-                  'Collectors',
-                  '120+',
-                  Icons.people,
-                ),
-                _buildStatCard(
-                  'Pickups',
-                  '58',
-                  Icons.local_shipping,
-                ),
-                _buildStatCard(
-                  'Recycled',
-                  '1.2T',
-                  Icons.recycling,
-                ),
+              children: const [
+                _StatCard(title: 'Collectors', value: '120+', icon: Icons.people),
+                _StatCard(title: 'Pickups', value: '58', icon: Icons.local_shipping),
+                _StatCard(title: 'Recycled', value: '1.2T', icon: Icons.recycling),
               ],
             ),
 
@@ -419,19 +189,14 @@ class _ClientDashboardScreenState
 
             const Text(
               'Available Collectors',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 16),
 
             FutureBuilder<List<UserModel>>(
               future: _fetchCollectors(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
@@ -445,16 +210,13 @@ class _ClientDashboardScreenState
                 if (collectors.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(24),
-                    child: Center(
-                      child: Text('No collectors found'),
-                    ),
+                    child: Center(child: Text('No collectors found')),
                   );
                 }
 
                 return Column(
                   children: collectors
-                      .map((collector) =>
-                      _collectorCard(collector))
+                      .map((collector) => _CollectorCard(collector: collector))
                       .toList(),
                 );
               },
@@ -465,14 +227,11 @@ class _ClientDashboardScreenState
     );
   }
 
-  /// ---------------------------
-  /// BODY SWITCHER
-  /// ---------------------------
+  /// --------------------------- BODY SWITCHER
   Widget _buildBody(bool isTablet) {
     switch (_currentIndex) {
       case 0:
         return _buildHomeContent(isTablet);
-
       case 1:
         return const Center(
           child: Text(
@@ -481,7 +240,6 @@ class _ClientDashboardScreenState
             style: TextStyle(fontSize: 22),
           ),
         );
-
       case 2:
         return const Center(
           child: Text(
@@ -490,7 +248,6 @@ class _ClientDashboardScreenState
             style: TextStyle(fontSize: 22),
           ),
         );
-
       case 3:
         return const Center(
           child: Text(
@@ -499,15 +256,12 @@ class _ClientDashboardScreenState
             style: TextStyle(fontSize: 20),
           ),
         );
-
       default:
         return _buildHomeContent(isTablet);
     }
   }
 
-  /// ---------------------------
-  /// MOBILE BOTTOM NAV
-  /// ---------------------------
+  /// --------------------------- MOBILE BOTTOM NAV
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
@@ -516,35 +270,17 @@ class _ClientDashboardScreenState
       unselectedItemColor: Colors.grey,
       onTap: (index) {
         if (!mounted) return;
-
-        setState(() {
-          _currentIndex = index;
-        });
+        setState(() => _currentIndex = index);
       },
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.schedule),
-          label: 'Schedule',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.history),
-          label: 'History',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedule'),
+        BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
       ],
     );
   }
 
-  /// ---------------------------
-  /// MAIN BUILD
-  /// ---------------------------
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProvider).user;
@@ -556,19 +292,114 @@ class _ClientDashboardScreenState
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: _buildAppBar(user),
-
       body: Row(
         children: [
-          if (isDesktop) _buildSidebar(),
-
+          if (isDesktop)
+            ClientSidebar(
+              currentIndex: _currentIndex,
+              onIndexChanged: (index) {
+                setState(() => _currentIndex = index);
+              },
+            ),
           Expanded(
             child: _buildBody(isTablet),
           ),
         ],
       ),
+      bottomNavigationBar: isDesktop ? null : _buildBottomNav(),
+    );
+  }
+}
 
-      bottomNavigationBar:
-      isDesktop ? null : _buildBottomNav(),
+/// Reusable Stat Card
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 34, color: Colors.green),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(title),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reusable Collector Card
+class _CollectorCard extends StatelessWidget {
+  final UserModel collector;
+
+  const _CollectorCard({super.key, required this.collector});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.go('/profile/${collector.id}'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundImage: collector.profilePictureUrl.isNotEmpty
+                  ? NetworkImage(collector.profilePictureUrl)
+                  : null,
+              child: collector.profilePictureUrl.isEmpty
+                  ? const Icon(Icons.person)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${collector.firstName} ${collector.lastName}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    collector.email,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }
