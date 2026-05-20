@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
@@ -26,6 +27,7 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
 class _OtherUserProfileScreenState
     extends ConsumerState<OtherUserProfileScreen> {
   late final _provider = socialProvider(widget.userId);
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -38,10 +40,12 @@ class _OtherUserProfileScreenState
   @override
   Widget build(BuildContext context) {
     final socialState = ref.watch(_provider);
-    final socialNotifier = ref.read(_provider.notifier);
     final currentUser = ref.watch(userProvider).user;
     final isOwnProfile = currentUser?.id == widget.userId;
     final displayName = _resolveDisplayName(socialState, currentUser);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLargeScreen = screenWidth > 900;
 
     return Scaffold(
       backgroundColor: _kGreenSurface,
@@ -52,73 +56,31 @@ class _OtherUserProfileScreenState
         onRefresh: () =>
             ref.read(_provider.notifier).refreshAll(widget.userId),
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverAppBar(
-              expandedHeight: 210,
-              pinned: true,
-              backgroundColor: _kGreen,
-              iconTheme: const IconThemeData(color: Colors.white),
-              leading: IconButton(
-                icon: const Icon(Icons.home, size: 28),
-                tooltip: 'Go to Home',
-                onPressed: () => context.go('/dashboard/client'),
-              ),
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [_kGreen, _kGreenLight],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 16),
-                        _buildAvatar(socialState),
-                        const SizedBox(height: 10),
-                        Text(
-                          displayName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        Text(
-                          socialState.profileEmail ?? widget.userId,
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _buildSliverAppBar(displayName, socialState),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isLargeScreen ? 40 : 16,
+                  vertical: 20,
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildStatsCard(socialState),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+
                     if (!isOwnProfile) ...[
-                      _buildActionButtons(socialState, socialNotifier),
+                      _buildActionButtons(socialState),
                       const SizedBox(height: 24),
                     ],
+
+                    _buildLocationCard(socialState),
+                    const SizedBox(height: 24),
+
                     _buildReviewsHeader(isOwnProfile),
-                    const SizedBox(height: 8),
-                    _buildReviewsList(
-                      socialState,
-                      socialNotifier,
-                      currentUser?.id,
-                    ),
+                    const SizedBox(height: 12),
+                    _buildReviewsList(socialState, currentUser?.id),
                   ],
                 ),
               ),
@@ -129,154 +91,225 @@ class _OtherUserProfileScreenState
     );
   }
 
+  Widget _buildSliverAppBar(String displayName, SocialState state) {
+    return SliverAppBar(
+      expandedHeight: 260,
+      pinned: true,
+      backgroundColor: _kGreen,
+      iconTheme: const IconThemeData(color: Colors.white),
+      leading: IconButton(
+        icon: const Icon(Icons.home, size: 28),
+        tooltip: 'Go to Home',
+        onPressed: () => context.go('/dashboard/client'),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_kGreen, _kGreenLight],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildAvatar(state),
+                const SizedBox(height: 12),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  state.profileEmail ?? widget.userId,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAvatar(SocialState state) {
     final url = state.profileAvatarUrl;
     return CircleAvatar(
-      radius: 46,
+      radius: 56,
       backgroundColor: Colors.white24,
       backgroundImage: url != null ? NetworkImage(url) : null,
       child: url == null
-          ? const Icon(Icons.person, size: 46, color: Colors.white)
+          ? const Icon(Icons.person, size: 56, color: Colors.white)
           : null,
     );
   }
 
   Widget _buildStatsCard(SocialState state) {
     return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: _kGreenAccent, width: 0.8),
-      ),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _statItem('Followers', state.stats?.followersCount ?? 0,
-                    () => _showUserList(context, 'Followers')),
-            _vDivider(),
+                    () => _showUserList('Followers')),
             _statItem('Following', state.stats?.followingCount ?? 0,
-                    () => _showUserList(context, 'Following')),
-            _vDivider(),
+                    () => _showUserList('Following')),
             _statItem('Likes', state.stats?.likesCount ?? 0, null,
-                icon: Icons.favorite_rounded, iconColor: Colors.red),
-            _vDivider(),
+                Icons.favorite_rounded, Colors.red),
             _statItem(
               'Rating',
               state.stats?.averageRating.toStringAsFixed(1) ?? '—',
               null,
-              icon: Icons.star_rounded,
-              iconColor: Colors.amber,
+              Icons.star_rounded,
+              Colors.amber,
             ),
           ],
         ),
       ),
     );
   }
-
-  Widget _vDivider() =>
-      Container(height: 36, width: 1, color: _kGreenAccent.withOpacity(0.4));
 
   Widget _statItem(String label, dynamic value, VoidCallback? onTap,
-      {IconData? icon, Color? iconColor}) {
+      [IconData? icon, Color? iconColor]) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Column(
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 15, color: iconColor),
-                  const SizedBox(width: 3),
-                ],
-                Text('$value',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 2),
+            if (icon != null)
+              Icon(icon, size: 32, color: iconColor)
+            else
+              Text('$value',
+                  style: const TextStyle(
+                      fontSize: 26, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
             Text(label,
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            if (onTap != null)
-              const Icon(Icons.keyboard_arrow_down,
-                  size: 13, color: _kGreenAccent),
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButtons(SocialState state, SocialNotifier notifier) {
+  Widget _buildActionButtons(SocialState state) {
     final busy = state.isLoading;
+    final notifier = ref.read(_provider.notifier);
 
-    return Row(
-      children: [
-        Expanded(
-          child: state.isFollowing
-              ? _GreenOutlinedButton(
-            label: 'Unfollow',
-            icon: Icons.person_remove_rounded,
-            iconColor: Colors.red,
-            onPressed: busy
-                ? null
-                : () => _confirmUnfollow(context, notifier),
-          )
-              : _GreenFilledButton(
-            label: 'Follow',
-            icon: Icons.person_add_rounded,
-            onPressed: busy ? null : () => notifier.follow(widget.userId),
-          ),
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Expanded(
+              child: state.isFollowing
+                  ? _GreenOutlinedButton(
+                label: 'Unfollow',
+                icon: Icons.person_remove_rounded,
+                iconColor: Colors.red,
+                onPressed: busy
+                    ? null
+                    : () => _confirmUnfollow(notifier),
+              )
+                  : _GreenFilledButton(
+                label: 'Follow',
+                icon: Icons.person_add_rounded,
+                onPressed: busy
+                    ? null
+                    : () => notifier.follow(widget.userId),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _AnimatedLikeButton(
+                isLiked: state.isLiked,
+                isProcessing: busy,
+                onTap: () async {
+                  if (state.isLiked) {
+                    await notifier.unlike(widget.userId);
+                  } else {
+                    await notifier.like(widget.userId);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            _GreenIconButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              tooltip: 'Write Review',
+              onPressed: () => _showReviewDialog(null),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _AnimatedLikeButton(
-            isLiked: state.isLiked,
-            isProcessing: busy,
-            onTap: () async {
-              if (state.isLiked) {
-                await notifier.unlike(widget.userId);
-              } else {
-                await notifier.like(widget.userId);
-              }
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        _GreenIconButton(
-          icon: Icons.chat_bubble_outline_rounded,
-          tooltip: 'Message',
-          onPressed: () {},
-        ),
-      ],
+      ),
     );
   }
 
-  void _confirmUnfollow(BuildContext context, SocialNotifier notifier) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Unfollow'),
-        content: const Text('Stop following this user?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
-            onPressed: () {
-              Navigator.pop(ctx);
-              notifier.unfollow(widget.userId);
-            },
-            child: const Text('Unfollow'),
-          ),
-        ],
+  Widget _buildLocationCard(SocialState state) {
+    final location = state.currentLocation; // From SocialState
+
+    final LatLng position = location != null
+        ? LatLng(location.latitude, location.longitude)
+        : const LatLng(6.5244, 3.3792); // fallback
+
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Current Location',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              location != null
+                  ? 'Last updated: ${location.timestamp?.toLocal().toString().substring(0, 16) ?? ""}'
+                  : 'Location not available',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 260,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: position,
+                    zoom: location != null ? 16 : 12,
+                  ),
+                  onMapCreated: (controller) => _mapController = controller,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('collector'),
+                      position: position,
+                      infoWindow: const InfoWindow(
+                        title: 'Collector Live Location',
+                      ),
+                    ),
+                  },
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                  zoomControlsEnabled: true,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -286,30 +319,32 @@ class _OtherUserProfileScreenState
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         const Text('Reviews',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         if (!isOwnProfile)
           TextButton.icon(
             style: TextButton.styleFrom(foregroundColor: _kGreen),
-            onPressed: () => _showReviewDialog(context, null),
-            icon: const Icon(Icons.edit_outlined, size: 16),
+            onPressed: () => _showReviewDialog(null),
+            icon: const Icon(Icons.edit_outlined, size: 18),
             label: const Text('Write Review'),
           ),
       ],
     );
   }
 
-  Widget _buildReviewsList(
-      SocialState state, SocialNotifier notifier, String? currentUserId) {
+  Widget _buildReviewsList(SocialState state, String? currentUserId) {
     if (state.reviews.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: Column(
-          children: [
-            Icon(Icons.rate_review_outlined, size: 48, color: _kGreenAccent),
-            SizedBox(height: 12),
-            Text('No reviews yet',
-                style: TextStyle(color: Colors.grey, fontSize: 15)),
-          ],
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 60),
+          child: Column(
+            children: [
+              Icon(Icons.rate_review_outlined,
+                  size: 60, color: _kGreenAccent),
+              SizedBox(height: 16),
+              Text('No reviews yet',
+                  style: TextStyle(fontSize: 16, color: Colors.grey)),
+            ],
+          ),
         ),
       );
     }
@@ -326,17 +361,43 @@ class _OtherUserProfileScreenState
         return _ReviewCard(
           review: review,
           isMyReview: isMyReview,
-          onEdit: isMyReview ? () => _showReviewDialog(context, review) : null,
+          onEdit: isMyReview ? () => _showReviewDialog(review) : null,
           onDelete: isMyReview
-              ? () => _confirmDelete(context, notifier, review.id, widget.userId)
+              ? () => _confirmDelete(review.id, widget.userId)
               : null,
         );
       },
     );
   }
 
-  void _confirmDelete(BuildContext context, SocialNotifier notifier,
-      String reviewId, String targetId) {
+  // ==================== DIALOGS ====================
+
+  void _confirmUnfollow(SocialNotifier notifier) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Unfollow'),
+        content: const Text('Stop following this user?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              notifier.unfollow(widget.userId);
+            },
+            child: const Text('Unfollow'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(String reviewId, String targetId) {
+    final notifier = ref.read(_provider.notifier);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -344,7 +405,9 @@ class _OtherUserProfileScreenState
         title: const Text('Delete Review'),
         content: const Text('Are you sure you want to delete this review?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
@@ -365,13 +428,10 @@ class _OtherUserProfileScreenState
           .trim();
       return name.isNotEmpty ? name : 'My Profile';
     }
-    if (state.profileDisplayName?.isNotEmpty == true) {
-      return state.profileDisplayName!;
-    }
-    return 'User Profile';
+    return state.profileDisplayName ?? 'User Profile';
   }
 
-  void _showReviewDialog(BuildContext context, ReviewResponseDto? existing) {
+  void _showReviewDialog(ReviewResponseDto? existing) {
     int rating = existing?.rating ?? 5;
     final commentController =
     TextEditingController(text: existing?.comment);
@@ -380,11 +440,12 @@ class _OtherUserProfileScreenState
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setInnerState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-              existing == null ? 'Write a Review' : 'Update Review',
-              style: const TextStyle(color: _kGreen)),
+            existing == null ? 'Write a Review' : 'Update Review',
+            style: const TextStyle(color: _kGreen, fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -398,13 +459,13 @@ class _OtherUserProfileScreenState
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       color: i < rating ? Colors.amber : Colors.grey,
-                      size: 34,
+                      size: 36,
                     ),
                     onPressed: () => setInnerState(() => rating = i + 1),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextField(
                 controller: commentController,
                 decoration: InputDecoration(
@@ -413,13 +474,12 @@ class _OtherUserProfileScreenState
                       borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                    const BorderSide(color: _kGreen, width: 2),
+                    borderSide: const BorderSide(color: _kGreen, width: 2),
                   ),
                   filled: true,
                   fillColor: _kGreenSurface,
                 ),
-                maxLines: 4,
+                maxLines: 5,
                 maxLength: 500,
               ),
             ],
@@ -427,8 +487,7 @@ class _OtherUserProfileScreenState
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel',
-                    style: TextStyle(color: Colors.grey))),
+                child: const Text('Cancel')),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _kGreen),
               onPressed: () async {
@@ -460,7 +519,7 @@ class _OtherUserProfileScreenState
     );
   }
 
-  void _showUserList(BuildContext context, String title) {
+  void _showUserList(String title) {
     final notifier = ref.read(_provider.notifier);
     if (title == 'Followers') {
       notifier.getFollowers(widget.userId);
@@ -474,16 +533,15 @@ class _OtherUserProfileScreenState
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.85,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
         expand: false,
         builder: (_, scrollController) => Consumer(
           builder: (context, ref, _) {
             final state = ref.watch(_provider);
-            final users = title == 'Followers'
-                ? state.followersList
-                : state.followingList;
+            final users =
+            title == 'Followers' ? state.followersList : state.followingList;
             return Column(
               children: [
                 const SizedBox(height: 8),
@@ -498,15 +556,12 @@ class _OtherUserProfileScreenState
                   padding: const EdgeInsets.all(16),
                   child: Text(title,
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                          fontSize: 20, fontWeight: FontWeight.bold)),
                 ),
-                const Divider(height: 1),
+                const Divider(),
                 Expanded(
-                  child: state.isLoading
-                      ? const Center(
-                      child: CircularProgressIndicator(color: _kGreen))
-                      : users.isEmpty
-                      ? const Center(child: Text('No users found.'))
+                  child: users.isEmpty
+                      ? const Center(child: Text('No users found'))
                       : ListView.builder(
                     controller: scrollController,
                     itemCount: users.length,
@@ -518,14 +573,11 @@ class _OtherUserProfileScreenState
                             backgroundImage: NetworkImage(
                                 user.profilePictureUrl!))
                             : const CircleAvatar(
-                            backgroundColor: _kGreenSurface,
-                            child: Icon(Icons.person,
-                                color: _kGreen)),
+                            child: Icon(Icons.person)),
                         title: Text(
                             '${user.firstName ?? ''} ${user.lastName ?? ''}'
                                 .trim()),
-                        subtitle:
-                        Text('@${user.username ?? 'user'}'),
+                        subtitle: Text('@${user.username ?? 'user'}'),
                       );
                     },
                   ),
@@ -557,42 +609,31 @@ class _ReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: isMyReview ? _kGreenAccent : const Color(0xFFE0E0E0),
-          width: isMyReview ? 1.4 : 0.8,
-        ),
-      ),
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                review.reviewerProfilePictureUrl != null
-                    ? CircleAvatar(
-                    radius: 20,
-                    backgroundImage:
-                    NetworkImage(review.reviewerProfilePictureUrl!))
-                    : CircleAvatar(
-                  radius: 20,
-                  backgroundColor: _kGreenSurface,
-                  child: Text(
-                    (review.reviewerName.isNotEmpty
-                        ? review.reviewerName[0]
-                        : '?')
-                        .toUpperCase(),
-                    style: const TextStyle(
-                        color: _kGreen,
-                        fontWeight: FontWeight.bold),
-                  ),
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: review.reviewerProfilePictureUrl != null
+                      ? NetworkImage(review.reviewerProfilePictureUrl!)
+                      : null,
+                  child: review.reviewerProfilePictureUrl == null
+                      ? Text(
+                    review.reviewerName.isNotEmpty
+                        ? review.reviewerName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  )
+                      : null,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,83 +641,76 @@ class _ReviewCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(review.reviewerName,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14)),
-                          ),
-                          if (isMyReview) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _kGreenSurface,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text('You',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      color: _kGreen,
-                                      fontWeight: FontWeight.w600)),
+                            child: Text(
+                              review.reviewerName,
+                              style:
+                              const TextStyle(fontWeight: FontWeight.w600),
                             ),
-                          ],
+                          ),
+                          if (isMyReview)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Text(
+                                'You',
+                                style: TextStyle(
+                                    color: _kGreen,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
                         ],
                       ),
                       Text(
-                        _fmt(review.createdAt),
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.grey),
+                        '${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}',
+                        style:
+                        const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
                 Container(
                   padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade50,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.amber.shade200),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.star_rounded,
-                          size: 14, color: Colors.amber),
-                      const SizedBox(width: 3),
+                          color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
                       Text('${review.rating}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
-                if (isMyReview) ...[
+              ],
+            ),
+            if (review.comment != null && review.comment!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(review.comment!, style: const TextStyle(height: 1.5)),
+            ],
+            if (isMyReview)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, color: _kGreen, size: 20),
+                    icon: const Icon(Icons.edit, color: _kGreen),
                     onPressed: onEdit,
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: Colors.red, size: 20),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
                     onPressed: onDelete,
                   ),
                 ],
-              ],
-            ),
-            if (review.comment != null &&
-                review.comment!.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(review.comment!,
-                  style: const TextStyle(fontSize: 14, height: 1.45)),
-            ],
+              ),
           ],
         ),
       ),
     );
   }
-
-  String _fmt(DateTime d) => '${d.day}/${d.month}/${d.year}';
 }
 
 class _GreenFilledButton extends StatelessWidget {
@@ -695,11 +729,12 @@ class _GreenFilledButton extends StatelessWidget {
     style: FilledButton.styleFrom(
       backgroundColor: _kGreen,
       foregroundColor: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     onPressed: onPressed,
-    icon: Icon(icon, size: 18),
+    icon: Icon(icon, size: 20),
     label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
   );
 }
@@ -722,11 +757,12 @@ class _GreenOutlinedButton extends StatelessWidget {
     style: OutlinedButton.styleFrom(
       foregroundColor: _kGreen,
       side: const BorderSide(color: _kGreen, width: 1.5),
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     onPressed: onPressed,
-    icon: Icon(icon, size: 18, color: iconColor),
+    icon: Icon(icon, size: 20, color: iconColor),
     label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
   );
 }
@@ -752,8 +788,8 @@ class _GreenIconButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.all(13),
-          child: Icon(icon, color: _kGreen, size: 22),
+          padding: const EdgeInsets.all(14),
+          child: Icon(icon, color: _kGreen, size: 24),
         ),
       ),
     ),
@@ -808,7 +844,7 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
               widget.onTap();
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -817,15 +853,15 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
                         ? Icons.favorite_rounded
                         : Icons.favorite_border_rounded,
                     color: liked ? Colors.red : _kGreen,
-                    size: 20,
+                    size: 22,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     liked ? 'Unlike' : 'Like',
                     style: TextStyle(
                       color: liked ? Colors.red : _kGreen,
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 15,
                     ),
                   ),
                 ],

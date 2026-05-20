@@ -27,6 +27,7 @@ class SocialState {
   final String? profileDisplayName;
   final String? profileAvatarUrl;
   final String? profileEmail;
+  final CurrentLocationDto? currentLocation;
 
   SocialState({
     this.isLoading = false,
@@ -41,6 +42,7 @@ class SocialState {
     this.profileDisplayName,
     this.profileAvatarUrl,
     this.profileEmail,
+    this.currentLocation,
   });
 
   SocialState copyWith({
@@ -56,6 +58,7 @@ class SocialState {
     String? profileDisplayName,
     String? profileAvatarUrl,
     String? profileEmail,
+    CurrentLocationDto? currentLocation,
   }) {
     return SocialState(
       isLoading: isLoading ?? this.isLoading,
@@ -70,6 +73,7 @@ class SocialState {
       profileDisplayName: profileDisplayName ?? this.profileDisplayName,
       profileAvatarUrl: profileAvatarUrl ?? this.profileAvatarUrl,
       profileEmail: profileEmail ?? this.profileEmail,
+      currentLocation: currentLocation ?? this.currentLocation,
     );
   }
 }
@@ -116,6 +120,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
             : '${summary.firstName ?? ''} ${summary.lastName ?? ''}'.trim(),
         profileAvatarUrl: summary.profilePictureUrl,
         profileEmail: summary.email,
+        currentLocation: summary.currentLocation,
       );
     } catch (e) {
       debugPrint('Profile user fetch error for $userId: $e');
@@ -123,11 +128,12 @@ class SocialNotifier extends StateNotifier<SocialState> {
         profileDisplayName: null,
         profileAvatarUrl: null,
         profileEmail: null,
+        currentLocation: null,
       );
     }
   }
 
-  // ====================== FOLLOW STATUS (Backend: {"following": true/false}) ======================
+  // ====================== FOLLOW STATUS ======================
   Future<void> _fetchFollowStatus(String userId) async {
     try {
       final response = await _dio.get('/is-following/$userId');
@@ -139,7 +145,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
-  // ====================== LIKE STATUS (Backend: {"liked": true/false}) ======================
+  // ====================== LIKE STATUS ======================
   Future<void> _fetchLikeStatus(String userId, {String targetType = 'USER'}) async {
     try {
       final response = await _dio.get('/is-liked', queryParameters: {
@@ -158,14 +164,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> follow(String userId) async {
     if (_actionInProgress || state.isFollowing) return;
     _actionInProgress = true;
-    state = state.copyWith(
-      isFollowing: true,
-      stats: state.stats?._withFollowers(state.stats!.followersCount + 1),
-    );
+    state = state.copyWith(isFollowing: true);
     try {
-      final response = await _dio.post('/follow/$userId');
-      final msg = _extractMessage(response.data) ?? 'Followed successfully';
-      Helpers.showToast(msg);
+      await _dio.post('/follow/$userId');
+      Helpers.showToast('Followed successfully');
       await _fetchStats(userId);
     } catch (e) {
       state = state.copyWith(isFollowing: false);
@@ -178,16 +180,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> unfollow(String userId) async {
     if (_actionInProgress || !state.isFollowing) return;
     _actionInProgress = true;
-    state = state.copyWith(
-      isFollowing: false,
-      stats: state.stats?._withFollowers(
-        (state.stats!.followersCount - 1).clamp(0, double.maxFinite.toInt()),
-      ),
-    );
+    state = state.copyWith(isFollowing: false);
     try {
-      final response = await _dio.delete('/follow/$userId');
-      final msg = _extractMessage(response.data) ?? 'Unfollowed successfully';
-      Helpers.showToast(msg);
+      await _dio.delete('/follow/$userId');
+      Helpers.showToast('Unfollowed successfully');
       await _fetchStats(userId);
     } catch (e) {
       state = state.copyWith(isFollowing: true);
@@ -201,15 +197,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
     if (_actionInProgress || state.isLiked) return;
     _actionInProgress = true;
-    state = state.copyWith(
-      isLiked: true,
-      stats: state.stats?._withLikes(state.stats!.likesCount + 1),
-    );
+    state = state.copyWith(isLiked: true);
     try {
-      final response = await _dio.post('/like',
-          data: {'targetId': targetId, 'targetType': targetType});
-      final msg = _extractMessage(response.data) ?? 'Liked successfully';
-      Helpers.showToast(msg);
+      await _dio.post('/like', data: {'targetId': targetId, 'targetType': targetType});
+      Helpers.showToast('Liked successfully');
       await _fetchStats(targetId);
     } catch (e) {
       state = state.copyWith(isLiked: false);
@@ -222,17 +213,10 @@ class SocialNotifier extends StateNotifier<SocialState> {
   Future<void> unlike(String targetId, {String targetType = 'USER'}) async {
     if (_actionInProgress || !state.isLiked) return;
     _actionInProgress = true;
-    state = state.copyWith(
-      isLiked: false,
-      stats: state.stats?._withLikes(
-        (state.stats!.likesCount - 1).clamp(0, double.maxFinite.toInt()),
-      ),
-    );
+    state = state.copyWith(isLiked: false);
     try {
-      final response = await _dio.delete('/like',
-          data: {'targetId': targetId, 'targetType': targetType});
-      final msg = _extractMessage(response.data) ?? 'Unliked successfully';
-      Helpers.showToast(msg);
+      await _dio.delete('/like', data: {'targetId': targetId, 'targetType': targetType});
+      Helpers.showToast('Unliked successfully');
       await _fetchStats(targetId);
     } catch (e) {
       state = state.copyWith(isLiked: true);
