@@ -1,8 +1,8 @@
 class LikeCheckDto {
-  final bool isLiked;
-  LikeCheckDto(this.isLiked);
+  final bool liked;
+  LikeCheckDto({required this.liked});
 
   factory LikeCheckDto.fromJson(Map<String, dynamic> json) {
-    return LikeCheckDto(json['isLiked'] ?? false);
+    return LikeCheckDto(liked: json['liked'] ?? false);
   }
 }

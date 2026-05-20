@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
@@ -41,10 +43,6 @@ class _OtherUserProfileScreenState
     final isOwnProfile = currentUser?.id == widget.userId;
     final displayName = _resolveDisplayName(socialState, currentUser);
 
-    // Debug prints
-    print("DEBUG PROFILE: userId=${widget.userId}, isFollowing=${socialState.isFollowing}, isLiked=${socialState.isLiked}");
-    print("DEBUG REVIEWS COUNT: ${socialState.reviews.length}");
-
     return Scaffold(
       backgroundColor: _kGreenSurface,
       body: socialState.isLoading && socialState.stats == null
@@ -61,6 +59,11 @@ class _OtherUserProfileScreenState
               pinned: true,
               backgroundColor: _kGreen,
               iconTheme: const IconThemeData(color: Colors.white),
+              leading: IconButton(
+                icon: const Icon(Icons.home, size: 28),
+                tooltip: 'Go to Home',
+                onPressed: () => context.go('/dashboard/client'),
+              ),
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
                   decoration: const BoxDecoration(
@@ -87,9 +90,9 @@ class _OtherUserProfileScreenState
                           textAlign: TextAlign.center,
                         ),
                         Text(
-                          '@${widget.userId}',
+                          socialState.profileEmail ?? widget.userId,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 12),
+                              color: Colors.white70, fontSize: 13),
                         ),
                       ],
                     ),
@@ -211,16 +214,18 @@ class _OtherUserProfileScreenState
 
   Widget _buildActionButtons(SocialState state, SocialNotifier notifier) {
     final busy = state.isLoading;
+
     return Row(
       children: [
         Expanded(
           child: state.isFollowing
               ? _GreenOutlinedButton(
-            label: 'Following',
-            icon: Icons.check_rounded,
-            iconColor: _kGreen,
-            onPressed:
-            busy ? null : () => _confirmUnfollow(context, notifier),
+            label: 'Unfollow',
+            icon: Icons.person_remove_rounded,
+            iconColor: Colors.red,
+            onPressed: busy
+                ? null
+                : () => _confirmUnfollow(context, notifier),
           )
               : _GreenFilledButton(
             label: 'Follow',
@@ -228,19 +233,21 @@ class _OtherUserProfileScreenState
             onPressed: busy ? null : () => notifier.follow(widget.userId),
           ),
         ),
-        const SizedBox(width: 10),
-        _AnimatedLikeButton(
-          isLiked: state.isLiked,
-          isProcessing: busy,
-          onTap: () async {
-            if (state.isLiked) {
-              await notifier.unlike(widget.userId);
-            } else {
-              await notifier.like(widget.userId);
-            }
-          },
+        const SizedBox(width: 12),
+        Expanded(
+          child: _AnimatedLikeButton(
+            isLiked: state.isLiked,
+            isProcessing: busy,
+            onTap: () async {
+              if (state.isLiked) {
+                await notifier.unlike(widget.userId);
+              } else {
+                await notifier.like(widget.userId);
+              }
+            },
+          ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         _GreenIconButton(
           icon: Icons.chat_bubble_outline_rounded,
           tooltip: 'Message',
@@ -258,7 +265,9 @@ class _OtherUserProfileScreenState
         title: const Text('Unfollow'),
         content: const Text('Stop following this user?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
             onPressed: () {
@@ -311,9 +320,8 @@ class _OtherUserProfileScreenState
       itemCount: state.reviews.length,
       itemBuilder: (context, index) {
         final review = state.reviews[index];
-        final isMyReview = currentUserId != null && review.reviewerId == currentUserId;
-
-        print("DEBUG REVIEW: reviewerId=${review.reviewerId}, currentUserId=$currentUserId, isMyReview=$isMyReview");
+        final isMyReview =
+            currentUserId != null && review.reviewerId == currentUserId;
 
         return _ReviewCard(
           review: review,
@@ -676,8 +684,11 @@ class _GreenFilledButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  const _GreenFilledButton(
-      {required this.label, required this.icon, this.onPressed});
+  const _GreenFilledButton({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) => FilledButton.icon(
@@ -810,7 +821,7 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    liked ? 'Liked' : 'Like',
+                    liked ? 'Unlike' : 'Like',
                     style: TextStyle(
                       color: liked ? Colors.red : _kGreen,
                       fontWeight: FontWeight.w600,

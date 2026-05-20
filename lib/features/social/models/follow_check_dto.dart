@@ -1,8 +1,8 @@
 class FollowCheckDto {
-  final bool isFollowing;
-  FollowCheckDto(this.isFollowing);
+  final bool following;
+  FollowCheckDto({required this.following});
 
   factory FollowCheckDto.fromJson(Map<String, dynamic> json) {
-    return FollowCheckDto(json['isFollowing'] ?? false);
+    return FollowCheckDto(following: json['following'] ?? false);
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/core/network/api_client.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
+
 import '../models/social_action_request.dart';
 import '../models/user_summary_dto.dart';
 import '../models/review_response_dto.dart';
@@ -25,6 +26,7 @@ class SocialState {
 
   final String? profileDisplayName;
   final String? profileAvatarUrl;
+  final String? profileEmail;
 
   SocialState({
     this.isLoading = false,
@@ -38,6 +40,7 @@ class SocialState {
     this.followingList = const [],
     this.profileDisplayName,
     this.profileAvatarUrl,
+    this.profileEmail,
   });
 
   SocialState copyWith({
@@ -52,6 +55,7 @@ class SocialState {
     List<UserSummaryDto>? followingList,
     String? profileDisplayName,
     String? profileAvatarUrl,
+    String? profileEmail,
   }) {
     return SocialState(
       isLoading: isLoading ?? this.isLoading,
@@ -65,6 +69,7 @@ class SocialState {
       followingList: followingList ?? this.followingList,
       profileDisplayName: profileDisplayName ?? this.profileDisplayName,
       profileAvatarUrl: profileAvatarUrl ?? this.profileAvatarUrl,
+      profileEmail: profileEmail ?? this.profileEmail,
     );
   }
 }
@@ -110,17 +115,46 @@ class SocialNotifier extends StateNotifier<SocialState> {
             ? summary.fullName
             : '${summary.firstName ?? ''} ${summary.lastName ?? ''}'.trim(),
         profileAvatarUrl: summary.profilePictureUrl,
+        profileEmail: summary.email,
       );
     } catch (e) {
       debugPrint('Profile user fetch error for $userId: $e');
       state = state.copyWith(
         profileDisplayName: null,
         profileAvatarUrl: null,
+        profileEmail: null,
       );
     }
   }
 
-  // ====================== FOLLOW ======================
+  // ====================== FOLLOW STATUS (Backend: {"following": true/false}) ======================
+  Future<void> _fetchFollowStatus(String userId) async {
+    try {
+      final response = await _dio.get('/is-following/$userId');
+      final dto = FollowCheckDto.fromJson(response.data);
+      state = state.copyWith(isFollowing: dto.following);
+    } catch (e) {
+      debugPrint('Follow status error: $e');
+      state = state.copyWith(isFollowing: false);
+    }
+  }
+
+  // ====================== LIKE STATUS (Backend: {"liked": true/false}) ======================
+  Future<void> _fetchLikeStatus(String userId, {String targetType = 'USER'}) async {
+    try {
+      final response = await _dio.get('/is-liked', queryParameters: {
+        'targetId': userId,
+        'targetType': targetType,
+      });
+      final dto = LikeCheckDto.fromJson(response.data);
+      state = state.copyWith(isLiked: dto.liked);
+    } catch (e) {
+      debugPrint('Like status error: $e');
+      state = state.copyWith(isLiked: false);
+    }
+  }
+
+  // ====================== FOLLOW ACTIONS ======================
   Future<void> follow(String userId) async {
     if (_actionInProgress || state.isFollowing) return;
     _actionInProgress = true;
@@ -163,7 +197,7 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
-  // ====================== LIKE ======================
+  // ====================== LIKE ACTIONS ======================
   Future<void> like(String targetId, {String targetType = 'USER'}) async {
     if (_actionInProgress || state.isLiked) return;
     _actionInProgress = true;
@@ -299,29 +333,6 @@ class SocialNotifier extends StateNotifier<SocialState> {
       state = state.copyWith(reviews: list);
     } catch (e) {
       debugPrint('Reviews fetch error: $e');
-    }
-  }
-
-  Future<void> _fetchFollowStatus(String userId) async {
-    try {
-      final response = await _dio.get('/is-following/$userId');
-      state = state.copyWith(
-          isFollowing: FollowCheckDto.fromJson(response.data).isFollowing);
-    } catch (e) {
-      debugPrint('Follow status error: $e');
-    }
-  }
-
-  Future<void> _fetchLikeStatus(String userId, {String targetType = 'USER'}) async {
-    try {
-      final response = await _dio.get('/is-liked', queryParameters: {
-        'targetId': userId,
-        'targetType': targetType,
-      });
-      state = state.copyWith(
-          isLiked: LikeCheckDto.fromJson(response.data).isLiked);
-    } catch (e) {
-      debugPrint('Like status error: $e');
     }
   }
 
