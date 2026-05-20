@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -98,7 +99,7 @@ class _OtherUserProfileScreenState
       backgroundColor: _kGreen,
       iconTheme: const IconThemeData(color: Colors.white),
       leading: IconButton(
-        icon: const Icon(Icons.home, size: 28),
+        icon: const Icon(Icons.arrow_back_outlined, size: 28),
         tooltip: 'Go to Home',
         onPressed: () => context.go('/dashboard/client'),
       ),
@@ -150,6 +151,7 @@ class _OtherUserProfileScreenState
   }
 
   Widget _buildStatsCard(SocialState state) {
+    final stats = state.stats;
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -158,18 +160,29 @@ class _OtherUserProfileScreenState
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _statItem('Followers', state.stats?.followersCount ?? 0,
-                    () => _showUserList('Followers')),
-            _statItem('Following', state.stats?.followingCount ?? 0,
-                    () => _showUserList('Following')),
-            _statItem('Likes', state.stats?.likesCount ?? 0, null,
-                Icons.favorite_rounded, Colors.red),
             _statItem(
-              'Rating',
-              state.stats?.averageRating.toStringAsFixed(1) ?? '—',
-              null,
-              Icons.star_rounded,
-              Colors.amber,
+              icon: Icons.people,
+              value: stats?.followersCount ?? 0,
+              label: 'Followers',
+              onTap: () => _showUserList('Followers'),
+            ),
+            _statItem(
+              icon: Icons.person_outline,
+              value: stats?.followingCount ?? 0,
+              label: 'Following',
+              onTap: () => _showUserList('Following'),
+            ),
+            _statItem(
+              icon: Icons.favorite,
+              value: stats?.likesCount ?? 0,
+              label: 'Likes',
+              color: Colors.red,
+            ),
+            _statItem(
+              icon: Icons.star,
+              value: stats?.averageRating?.toStringAsFixed(1) ?? '—',
+              label: 'Rating',
+              color: Colors.amber,
             ),
           ],
         ),
@@ -177,24 +190,37 @@ class _OtherUserProfileScreenState
     );
   }
 
-  Widget _statItem(String label, dynamic value, VoidCallback? onTap,
-      [IconData? icon, Color? iconColor]) {
+  Widget _statItem({
+    required IconData icon,
+    required dynamic value,
+    required String label,
+    Color? color,
+    VoidCallback? onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Column(
           children: [
-            if (icon != null)
-              Icon(icon, size: 32, color: iconColor)
-            else
-              Text('$value',
-                  style: const TextStyle(
-                      fontSize: 26, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text(label,
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            Icon(icon, size: 32, color: color ?? _kGreen),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
           ],
         ),
       ),
@@ -218,16 +244,12 @@ class _OtherUserProfileScreenState
                 label: 'Unfollow',
                 icon: Icons.person_remove_rounded,
                 iconColor: Colors.red,
-                onPressed: busy
-                    ? null
-                    : () => _confirmUnfollow(notifier),
+                onPressed: busy ? null : () => _confirmUnfollow(notifier),
               )
                   : _GreenFilledButton(
                 label: 'Follow',
                 icon: Icons.person_add_rounded,
-                onPressed: busy
-                    ? null
-                    : () => notifier.follow(widget.userId),
+                onPressed: busy ? null : () => notifier.follow(widget.userId),
               ),
             ),
             const SizedBox(width: 12),
@@ -257,11 +279,29 @@ class _OtherUserProfileScreenState
   }
 
   Widget _buildLocationCard(SocialState state) {
-    final location = state.currentLocation; // From SocialState
+    final location = state.currentLocation;
 
-    final LatLng position = location != null
-        ? LatLng(location.latitude, location.longitude)
-        : const LatLng(6.5244, 3.3792); // fallback
+    if (location == null) {
+      return Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: const Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Icons.location_off, size: 48, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('Location not available',
+                    style: TextStyle(fontSize: 16, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final position = LatLng(location.latitude, location.longitude);
 
     return Card(
       elevation: 3,
@@ -277,34 +317,46 @@ class _OtherUserProfileScreenState
             ),
             const SizedBox(height: 6),
             Text(
-              location != null
-                  ? 'Last updated: ${location.timestamp?.toLocal().toString().substring(0, 16) ?? ""}'
-                  : 'Location not available',
-              style: const TextStyle(color: Colors.grey),
+              'Last updated: ${location.timestamp?.toLocal().toString().substring(0, 16) ?? "Recently"}',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 16),
             SizedBox(
               height: 260,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: GoogleMap(
+                child: kIsWeb
+                    ? Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, size: 48, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text('Map view available on mobile',
+                            style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                )
+                    : GoogleMap(
                   initialCameraPosition: CameraPosition(
                     target: position,
-                    zoom: location != null ? 16 : 12,
+                    zoom: 15,
                   ),
                   onMapCreated: (controller) => _mapController = controller,
                   markers: {
                     Marker(
                       markerId: const MarkerId('collector'),
                       position: position,
-                      infoWindow: const InfoWindow(
-                        title: 'Collector Live Location',
-                      ),
+                      infoWindow: const InfoWindow(title: 'Collector Live Location'),
                     ),
                   },
                   myLocationEnabled: true,
                   myLocationButtonEnabled: true,
                   zoomControlsEnabled: true,
+                  mapType: MapType.normal,
                 ),
               ),
             ),
@@ -338,8 +390,7 @@ class _OtherUserProfileScreenState
           padding: EdgeInsets.symmetric(vertical: 60),
           child: Column(
             children: [
-              Icon(Icons.rate_review_outlined,
-                  size: 60, color: _kGreenAccent),
+              Icon(Icons.rate_review_outlined, size: 60, color: _kGreenAccent),
               SizedBox(height: 16),
               Text('No reviews yet',
                   style: TextStyle(fontSize: 16, color: Colors.grey)),
@@ -380,9 +431,7 @@ class _OtherUserProfileScreenState
         title: const Text('Unfollow'),
         content: const Text('Stop following this user?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
@@ -405,9 +454,7 @@ class _OtherUserProfileScreenState
         title: const Text('Delete Review'),
         content: const Text('Are you sure you want to delete this review?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
@@ -433,15 +480,13 @@ class _OtherUserProfileScreenState
 
   void _showReviewDialog(ReviewResponseDto? existing) {
     int rating = existing?.rating ?? 5;
-    final commentController =
-    TextEditingController(text: existing?.comment);
+    final commentController = TextEditingController(text: existing?.comment);
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setInnerState) => AlertDialog(
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
             existing == null ? 'Write a Review' : 'Update Review',
             style: const TextStyle(color: _kGreen, fontWeight: FontWeight.bold),
@@ -455,9 +500,7 @@ class _OtherUserProfileScreenState
                   5,
                       (i) => IconButton(
                     icon: Icon(
-                      i < rating
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
+                      i < rating ? Icons.star_rounded : Icons.star_outline_rounded,
                       color: i < rating ? Colors.amber : Colors.grey,
                       size: 36,
                     ),
@@ -470,8 +513,7 @@ class _OtherUserProfileScreenState
                 controller: commentController,
                 decoration: InputDecoration(
                   hintText: 'Share your experience...',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: _kGreen, width: 2),
@@ -485,9 +527,7 @@ class _OtherUserProfileScreenState
             ],
           ),
           actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _kGreen),
               onPressed: () async {
@@ -540,8 +580,7 @@ class _OtherUserProfileScreenState
         builder: (_, scrollController) => Consumer(
           builder: (context, ref, _) {
             final state = ref.watch(_provider);
-            final users =
-            title == 'Followers' ? state.followersList : state.followingList;
+            final users = title == 'Followers' ? state.followersList : state.followingList;
             return Column(
               children: [
                 const SizedBox(height: 8),
@@ -549,14 +588,14 @@ class _OtherUserProfileScreenState
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2)),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(title,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold)),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 ),
                 const Divider(),
                 Expanded(
@@ -569,14 +608,9 @@ class _OtherUserProfileScreenState
                       final user = users[i];
                       return ListTile(
                         leading: user.profilePictureUrl != null
-                            ? CircleAvatar(
-                            backgroundImage: NetworkImage(
-                                user.profilePictureUrl!))
-                            : const CircleAvatar(
-                            child: Icon(Icons.person)),
-                        title: Text(
-                            '${user.firstName ?? ''} ${user.lastName ?? ''}'
-                                .trim()),
+                            ? CircleAvatar(backgroundImage: NetworkImage(user.profilePictureUrl!))
+                            : const CircleAvatar(child: Icon(Icons.person)),
+                        title: Text('${user.firstName ?? ''} ${user.lastName ?? ''}'.trim()),
                         subtitle: Text('@${user.username ?? 'user'}'),
                       );
                     },
@@ -641,36 +675,29 @@ class _ReviewCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
-                              review.reviewerName,
-                              style:
-                              const TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                            child: Text(review.reviewerName,
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
                           ),
                           if (isMyReview)
                             const Padding(
                               padding: EdgeInsets.only(left: 8),
-                              child: Text(
-                                'You',
-                                style: TextStyle(
-                                    color: _kGreen,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold),
-                              ),
+                              child: Text('You',
+                                  style: TextStyle(
+                                      color: _kGreen,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
                             ),
                         ],
                       ),
                       Text(
                         '${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}',
-                        style:
-                        const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade50,
                     borderRadius: BorderRadius.circular(20),
@@ -678,8 +705,7 @@ class _ReviewCard extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.star_rounded,
-                          color: Colors.amber, size: 16),
+                      const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                       const SizedBox(width: 4),
                       Text('${review.rating}',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -696,14 +722,8 @@ class _ReviewCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: _kGreen),
-                    onPressed: onEdit,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: onDelete,
-                  ),
+                  IconButton(icon: const Icon(Icons.edit, color: _kGreen), onPressed: onEdit),
+                  IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: onDelete),
                 ],
               ),
           ],
@@ -718,11 +738,7 @@ class _GreenFilledButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  const _GreenFilledButton({
-    required this.label,
-    required this.icon,
-    this.onPressed,
-  });
+  const _GreenFilledButton({required this.label, required this.icon, this.onPressed});
 
   @override
   Widget build(BuildContext context) => FilledButton.icon(
@@ -730,8 +746,7 @@ class _GreenFilledButton extends StatelessWidget {
       backgroundColor: _kGreen,
       foregroundColor: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 14),
-      shape:
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     onPressed: onPressed,
     icon: Icon(icon, size: 20),
@@ -758,8 +773,7 @@ class _GreenOutlinedButton extends StatelessWidget {
       foregroundColor: _kGreen,
       side: const BorderSide(color: _kGreen, width: 1.5),
       padding: const EdgeInsets.symmetric(vertical: 14),
-      shape:
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     onPressed: onPressed,
     icon: Icon(icon, size: 20, color: iconColor),
@@ -849,9 +863,7 @@ class _AnimatedLikeButtonState extends State<_AnimatedLikeButton>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    liked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
+                    liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                     color: liked ? Colors.red : _kGreen,
                     size: 22,
                   ),
