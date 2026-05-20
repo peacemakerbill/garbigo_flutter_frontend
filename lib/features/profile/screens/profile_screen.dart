@@ -1,5 +1,3 @@
-import 'dart:io' show File;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,7 +37,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.initState();
     _initializeControllers();
 
-    // Safe delayed load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadData();
     });
@@ -47,8 +44,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   void _initializeControllers() {
     final user = ref.read(userProvider).user;
-    _currentUserId = user?.id;
-
     _firstNameCtrl = TextEditingController(text: user?.firstName ?? '');
     _middleNameCtrl = TextEditingController(text: user?.middleName ?? '');
     _lastNameCtrl = TextEditingController(text: user?.lastName ?? '');
@@ -60,14 +55,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
-
     try {
       await ref.read(userProvider.notifier).fetchCurrentUser();
 
       if (!mounted) return;
 
       final user = ref.read(userProvider).user;
-
       if (user != null) {
         setState(() => _currentUserId = user.id);
 
@@ -78,9 +71,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _syncControllers(user);
       }
     } catch (e) {
-      if (mounted) {
-        Helpers.showToast('Failed to load profile', isError: true);
-      }
+      if (mounted) Helpers.showToast('Failed to load profile', isError: true);
     }
   }
 
@@ -98,26 +89,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final picker = ImagePicker();
     final image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80,
+      imageQuality: 85,
+      maxWidth: 1024,
+      maxHeight: 1024,
     );
+
     if (image != null && mounted) {
       setState(() => _selectedImage = image);
+      await ref.read(profileProvider.notifier).updateProfilePicture(image);
+
+      if (mounted) {
+        setState(() => _selectedImage = null);
+      }
     }
   }
 
   ImageProvider? _getProfileImageProvider(UserModel? user) {
-    if (_selectedImage != null) {
-      if (kIsWeb) {
-        return NetworkImage(_selectedImage!.path);
-      } else {
-        return FileImage(File(_selectedImage!.path));
-      }
-    }
-
     if (user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty) {
       return NetworkImage(user.profilePictureUrl);
     }
-
     return null;
   }
 
@@ -134,29 +124,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'collectionSchedule': _scheduleCtrl.text.trim(),
     };
 
-    await ref.read(profileProvider.notifier).updateProfile(
-      data: updateData,
-      imageFile: _selectedImage,
-    );
+    updateData.removeWhere((key, value) => value == null || value.isEmpty);
+
+    if (updateData.isEmpty) {
+      Helpers.showToast('No changes to save');
+      return;
+    }
+
+    await ref.read(profileProvider.notifier).updateProfileData(updateData);
 
     if (mounted) {
-      setState(() {
-        _isEditing = false;
-        _selectedImage = null;
-      });
+      setState(() => _isEditing = false);
     }
   }
 
   void _cancelEditing() {
     if (!mounted) return;
-
     final user = ref.read(userProvider).user;
     if (user != null) _syncControllers(user);
 
-    setState(() {
-      _isEditing = false;
-      _selectedImage = null;
-    });
+    setState(() => _isEditing = false);
   }
 
   @override
@@ -191,14 +178,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             switch (role) {
               case 'ADMIN':
                 context.go('/admin/dashboard');
+                break;
               case 'COLLECTOR':
                 context.go('/dashboard/collector');
-              case 'OPERATIONS':
-                context.go('/dashboard/operations');
-              case 'FINANCE':
-                context.go('/dashboard/finance');
-              case 'SUPPORT':
-                context.go('/dashboard/support');
+                break;
               default:
                 context.go('/dashboard/client');
             }
@@ -220,116 +203,135 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Profile Picture
-              GestureDetector(
-                onTap: _isEditing ? _pickImage : null,
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.green.shade50,
-                      backgroundImage: _getProfileImageProvider(user),
-                      child: (_getProfileImageProvider(user) == null)
-                          ? const Icon(Icons.person, size: 70, color: Colors.green)
-                          : null,
-                    ),
-                    if (_isEditing)
-                      const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.green,
-                        child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620), // ← Limits form width on large screens
+              child: Column(
+                children: [
+                  // Profile Picture Card
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: _isEditing ? _pickImage : null,
+                            child: Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                CircleAvatar(
+                                  radius: 65,
+                                  backgroundColor: Colors.green.shade50,
+                                  backgroundImage: _getProfileImageProvider(user),
+                                  child: _getProfileImageProvider(user) == null
+                                      ? const Icon(Icons.person, size: 80, color: Colors.green)
+                                      : null,
+                                ),
+                                if (_isEditing)
+                                  const CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: Colors.green,
+                                    child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
+                                ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
+                                : 'Your Profile',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+                        ],
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Text(
-                '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
-                    ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
-                    : 'Your Profile',
-                style: Theme.of(context).textTheme.headlineMedium,
-                textAlign: TextAlign.center,
-              ),
-              Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-
-              // Social Stats
-              if (socialStats != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatItem('Followers', socialStats.followersCount),
-                      _buildStatItem('Likes', socialStats.likesCount),
-                      _buildStatItem('Rating', socialStats.averageRating.toStringAsFixed(1)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
-
-              // Profile Information
-              _buildInfoSection(user, _isEditing),
-
-              const SizedBox(height: 40),
-
-              if (_isEditing)
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: profileState.isLoading ? null : _saveChanges,
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: profileState.isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
-                ),
-            ],
+
+                  const SizedBox(height: 20),
+
+                  // Social Stats
+                  if (socialStats != null)
+                    Card(
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatItem('Followers', socialStats.followersCount),
+                            _buildStatItem('Likes', socialStats.likesCount),
+                            _buildStatItem('Rating', '${socialStats.averageRating.toStringAsFixed(1)} ★'),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Profile Information Card
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Personal Information'),
+                          _buildField('First Name', user?.firstName, _firstNameCtrl, _isEditing),
+                          _buildField('Middle Name', user?.middleName, _middleNameCtrl, _isEditing),
+                          _buildField('Last Name', user?.lastName, _lastNameCtrl, _isEditing),
+
+                          const SizedBox(height: 24),
+                          _buildSectionTitle('Contact & Service'),
+                          _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, _isEditing),
+                          _buildField('Home Address', user?.homeAddress, _addressCtrl, _isEditing),
+                          _buildField('Waste Preferences', user?.wastePreferences, _wastePrefCtrl, _isEditing),
+                          _buildField('Collection Schedule', user?.collectionSchedule, _scheduleCtrl, _isEditing),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  if (_isEditing)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: profileState.isLoading ? null : _saveChanges,
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          backgroundColor: Colors.green,
+                        ),
+                        child: profileState.isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('Save Changes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoSection(UserModel? user, bool isEditing) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle('Personal Information'),
-        _buildField('First Name', user?.firstName, _firstNameCtrl, isEditing),
-        _buildField('Middle Name', user?.middleName, _middleNameCtrl, isEditing),
-        _buildField('Last Name', user?.lastName, _lastNameCtrl, isEditing),
-
-        const SizedBox(height: 24),
-        _buildSectionTitle('Contact & Service'),
-        _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, isEditing),
-        _buildField('Home Address', user?.homeAddress, _addressCtrl, isEditing),
-        _buildField('Waste Preferences', user?.wastePreferences, _wastePrefCtrl, isEditing),
-        _buildField('Collection Schedule', user?.collectionSchedule, _scheduleCtrl, isEditing),
-      ],
-    );
-  }
-
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green),
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
       ),
     );
   }
@@ -338,10 +340,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!isEditing) {
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
           value?.isNotEmpty == true ? value! : 'Not provided',
-          style: const TextStyle(fontSize: 15),
+          style: const TextStyle(fontSize: 16),
         ),
       );
     }
@@ -353,6 +355,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.grey.shade50,
         ),
       ),
     );
@@ -361,8 +365,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildStatItem(String label, dynamic value) {
     return Column(
       children: [
-        Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+        Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
       ],
     );
   }
