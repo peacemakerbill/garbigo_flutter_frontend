@@ -2,7 +2,9 @@ import 'dart:io' show File;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/profile/providers/profile_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
@@ -182,6 +184,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            final role = ref.read(authProvider).role ?? 'CLIENT';
+            switch (role) {
+              case 'ADMIN':
+                context.go('/admin/dashboard');
+              case 'COLLECTOR':
+                context.go('/dashboard/collector');
+              case 'OPERATIONS':
+                context.go('/dashboard/operations');
+              case 'FINANCE':
+                context.go('/dashboard/finance');
+              case 'SUPPORT':
+                context.go('/dashboard/support');
+              default:
+                context.go('/dashboard/client');
+            }
+          },
+        ),
         actions: [
           if (_isEditing)
             TextButton(

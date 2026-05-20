@@ -43,7 +43,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     state = state.copyWith(isLoading: true, error: null, successMessage: null);
 
     try {
-      final dio = Dio(BaseOptions(baseUrl: AppConfig.usersBase));
+      final dio = Dio(BaseOptions(baseUrl: AppConfig.baseUrl));
       final token = ref.read(authProvider).token;
       if (token == null) throw Exception('Not authenticated');
 
@@ -63,7 +63,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       }
 
       await dio.put(
-        '/profile',
+        '/users/profile',
         data: formData,
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );

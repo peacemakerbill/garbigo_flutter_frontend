@@ -35,7 +35,6 @@ class _ClientDashboardScreenState
     'Home',
     'Schedule Pickup',
     'History',
-    'Profile',
   ];
 
   @override
@@ -85,7 +84,7 @@ class _ClientDashboardScreenState
       backgroundColor: Colors.white,
       elevation: 0,
       title: Text(
-        _titles[_currentIndex],
+        _currentIndex < _titles.length ? _titles[_currentIndex] : 'Profile',
         style: const TextStyle(
           color: Colors.black,
           fontWeight: FontWeight.bold,
@@ -248,14 +247,6 @@ class _ClientDashboardScreenState
             style: TextStyle(fontSize: 22),
           ),
         );
-      case 3:
-        return const Center(
-          child: Text(
-            'Profile Section\n\nUse top-right icon',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 20),
-          ),
-        );
       default:
         return _buildHomeContent(isTablet);
     }
@@ -270,6 +261,10 @@ class _ClientDashboardScreenState
       unselectedItemColor: Colors.grey,
       onTap: (index) {
         if (!mounted) return;
+        if (index == 3) {
+          context.go('/profile');
+          return;
+        }
         setState(() => _currentIndex = index);
       },
       items: const [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class ClientSidebar extends StatelessWidget {
   final int currentIndex;
@@ -60,13 +61,8 @@ class ClientSidebar extends StatelessWidget {
             currentIndex: currentIndex,
             onTap: onIndexChanged,
           ),
-          _SidebarButton(
-            icon: Icons.person,
-            title: 'Profile',
-            index: 3,
-            currentIndex: currentIndex,
-            onTap: onIndexChanged,
-          ),
+          const Divider(),
+          _ProfileSidebarButton(currentIndex: currentIndex),
         ],
       ),
     );
@@ -110,6 +106,46 @@ class _SidebarButton extends StatelessWidget {
             const SizedBox(width: 14),
             Text(
               title,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSidebarButton extends StatelessWidget {
+  final int currentIndex;
+
+  const _ProfileSidebarButton({required this.currentIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    // Highlighted when on /profile route
+    final bool selected = GoRouterState.of(context).matchedLocation == '/profile';
+
+    return GestureDetector(
+      onTap: () => context.go('/profile'),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? Colors.green.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.person,
+              color: selected ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(width: 14),
+            Text(
+              'Profile',
               style: TextStyle(
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 color: Colors.black,
