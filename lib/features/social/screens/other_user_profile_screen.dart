@@ -1,15 +1,14 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
 import 'package:garbigo_frontend/features/social/models/review_update_request.dart';
-import 'package:garbigo_frontend/features/social/models/user_summary_dto.dart';
 
 const _kGreen = Color(0xFF2E7D32);
 const _kGreenLight = Color(0xFF4CAF50);
@@ -28,7 +27,7 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
 class _OtherUserProfileScreenState
     extends ConsumerState<OtherUserProfileScreen> {
   late final _provider = socialProvider(widget.userId);
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -325,38 +324,36 @@ class _OtherUserProfileScreenState
               height: 260,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: kIsWeb
-                    ? Container(
-                  color: Colors.grey[200],
-                  child: const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.map, size: 48, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('Map view available on mobile',
-                            style: TextStyle(color: Colors.grey)),
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: position,
+                    initialZoom: 15,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.garbigo.frontend',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: position,
+                          width: 48,
+                          height: 48,
+                          child: const Tooltip(
+                            message: 'Collector Live Location',
+                            child: Icon(
+                              Icons.location_pin,
+                              color: _kGreen,
+                              size: 48,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                )
-                    : GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: position,
-                    zoom: 15,
-                  ),
-                  onMapCreated: (controller) => _mapController = controller,
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('collector'),
-                      position: position,
-                      infoWindow: const InfoWindow(title: 'Collector Live Location'),
-                    ),
-                  },
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  zoomControlsEnabled: true,
-                  mapType: MapType.normal,
+                  ],
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import 'package:garbigo_frontend/core/utils/helpers.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
@@ -14,7 +15,7 @@ class CollectorDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _CollectorDashboardScreenState extends ConsumerState<CollectorDashboardScreen> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
 
   @override
   Widget build(BuildContext context) {
@@ -87,33 +88,41 @@ class _CollectorDashboardScreenState extends ConsumerState<CollectorDashboardScr
           Expanded(
             child: locationState.currentPosition == null
                 ? const Center(child: Text('Waiting for location...'))
-                : GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: LatLng(
+                : FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: LatLng(
                   locationState.currentPosition!.latitude,
                   locationState.currentPosition!.longitude,
                 ),
-                zoom: 16,
+                initialZoom: 16,
               ),
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              onMapCreated: (controller) {
-                _mapController = controller;
-              },
-              markers: {
-                Marker(
-                  markerId: const MarkerId('collector'),
-                  position: LatLng(
-                    locationState.currentPosition!.latitude,
-                    locationState.currentPosition!.longitude,
-                  ),
-                  infoWindow: const InfoWindow(title: 'My Location'),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.garbigo.frontend',
                 ),
-              },
-              onCameraMove: (position) {
-                // Optional: animate to current location
-              },
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(
+                        locationState.currentPosition!.latitude,
+                        locationState.currentPosition!.longitude,
+                      ),
+                      width: 48,
+                      height: 48,
+                      child: const Tooltip(
+                        message: 'My Location',
+                        child: Icon(
+                          Icons.location_pin,
+                          color: Colors.green,
+                          size: 48,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -127,7 +136,6 @@ class _CollectorDashboardScreenState extends ConsumerState<CollectorDashboardScr
 
   @override
   void dispose() {
-    _mapController?.dispose();
     super.dispose();
   }
 }
