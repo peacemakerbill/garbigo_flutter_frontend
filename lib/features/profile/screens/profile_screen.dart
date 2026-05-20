@@ -206,54 +206,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           padding: const EdgeInsets.all(16),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620), // ← Limits form width on large screens
+              constraints: const BoxConstraints(maxWidth: 620),
               child: Column(
                 children: [
-                  // Profile Picture Card
+                  // ====================== PERFECT CIRCLE PROFILE PICTURE ======================
                   Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            onTap: _isEditing ? _pickImage : null,
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                CircleAvatar(
-                                  radius: 65,
-                                  backgroundColor: Colors.green.shade50,
-                                  backgroundImage: _getProfileImageProvider(user),
-                                  child: _getProfileImageProvider(user) == null
-                                      ? const Icon(Icons.person, size: 80, color: Colors.green)
-                                      : null,
-                                ),
-                                if (_isEditing)
-                                  const CircleAvatar(
-                                    radius: 22,
-                                    backgroundColor: Colors.green,
-                                    child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
-                                  ),
-                              ],
-                            ),
+                    elevation: 6,
+                    shape: const CircleBorder(),
+                    child: Container(
+                      width: 190,
+                      height: 190,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.25),
+                            blurRadius: 25,
+                            spreadRadius: 3,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
-                                ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
-                                : 'Your Profile',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                          Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
                         ],
+                      ),
+                      child: GestureDetector(
+                        onTap: _isEditing ? _pickImage : null,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CircleAvatar(
+                              radius: 92,
+                              backgroundColor: Colors.green.shade50,
+                              backgroundImage: _getProfileImageProvider(user),
+                              child: _getProfileImageProvider(user) == null
+                                  ? const Icon(Icons.person, size: 92, color: Colors.green)
+                                  : null,
+                            ),
+                            if (_isEditing)
+                              const CircleAvatar(
+                                radius: 22,
+                                backgroundColor: Colors.green,
+                                child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+
+                  // Name and Username
+                  Text(
+                    '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
+                        ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
+                        : 'Your Profile',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+
+                  const SizedBox(height: 24),
 
                   // Social Stats
                   if (socialStats != null)
@@ -273,7 +284,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
                   // Profile Information Card
                   Card(
