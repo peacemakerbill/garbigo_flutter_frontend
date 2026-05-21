@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class ClientSidebar extends StatelessWidget {
+import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
+import 'package:garbigo_frontend/features/auth/models/user_model.dart';
+
+class ClientSidebar extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onIndexChanged;
 
@@ -12,7 +16,9 @@ class ClientSidebar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider).user;
+
     return Container(
       width: 250,
       color: Colors.white,
@@ -62,7 +68,10 @@ class ClientSidebar extends StatelessWidget {
             onTap: onIndexChanged,
           ),
           const Divider(),
-          _ProfileSidebarButton(currentIndex: currentIndex),
+          _ProfileSidebarButton(
+            user: user,
+            currentIndex: currentIndex,
+          ),
         ],
       ),
     );
@@ -118,14 +127,34 @@ class _SidebarButton extends StatelessWidget {
   }
 }
 
+// ==================== PROFILE SIDEBAR BUTTON WITH AVATAR ====================
 class _ProfileSidebarButton extends StatelessWidget {
+  final UserModel? user;
   final int currentIndex;
 
-  const _ProfileSidebarButton({required this.currentIndex});
+  const _ProfileSidebarButton({
+    super.key,
+    required this.user,
+    required this.currentIndex,
+  });
+
+  Widget _buildProfileAvatar({double radius = 16}) {
+    final hasImage = user?.profilePictureUrl != null &&
+        user!.profilePictureUrl.isNotEmpty;
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey.shade200,
+      backgroundImage: hasImage ? NetworkImage(user!.profilePictureUrl) : null,
+      child: hasImage
+          ? null
+          : const Icon(Icons.person, color: Colors.grey, size: 18),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Highlighted when on /profile route
+    // Highlight when on /profile route
     final bool selected = GoRouterState.of(context).matchedLocation == '/profile';
 
     return GestureDetector(
@@ -139,10 +168,7 @@ class _ProfileSidebarButton extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.person,
-              color: selected ? Colors.green : Colors.grey,
-            ),
+            _buildProfileAvatar(),
             const SizedBox(width: 14),
             Text(
               'Profile',
