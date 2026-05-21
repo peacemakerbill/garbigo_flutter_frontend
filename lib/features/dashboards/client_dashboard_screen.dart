@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +12,8 @@ import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 
 import 'client_widgets/client_sidebar.dart';
+import 'client_widgets/schedule_pickup_content.dart';
+import 'client_widgets/pickup_history_content.dart';
 
 class ClientDashboardScreen extends ConsumerStatefulWidget {
   const ClientDashboardScreen({super.key});
@@ -22,14 +23,19 @@ class ClientDashboardScreen extends ConsumerStatefulWidget {
       _ClientDashboardScreenState();
 }
 
-class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
+class _ClientDashboardScreenState
+    extends ConsumerState<ClientDashboardScreen> {
   int _currentIndex = 0;
 
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   String _searchQuery = '';
 
-  final List<String> _titles = const ['Home', 'Schedule Pickup', 'History'];
+  final List<String> _titles = const [
+    'Home',
+    'Schedule Pickup',
+    'History',
+  ];
 
   @override
   void dispose() {
@@ -45,23 +51,35 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
 
       final response = await dio.get(
         '/users/collectors',
-        queryParameters: _searchQuery.isNotEmpty ? {'search': _searchQuery} : null,
+        queryParameters:
+        _searchQuery.isNotEmpty ? {'search': _searchQuery} : null,
       );
 
       final List<dynamic> data = response.data;
+
       return data.map((json) => UserModel.fromJson(json)).toList();
     } catch (e) {
-      Helpers.showToast('Failed to load collectors', isError: true);
+      Helpers.showToast(
+        'Failed to load collectors',
+        isError: true,
+      );
       return [];
     }
   }
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () {
-      if (!mounted) return;
-      setState(() => _searchQuery = value.trim());
-    });
+
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+          () {
+        if (!mounted) return;
+
+        setState(() {
+          _searchQuery = value.trim();
+        });
+      },
+    );
   }
 
   Future<void> _refreshDashboard() async {
@@ -69,45 +87,60 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
     setState(() {});
   }
 
-  // ==================== PROFILE PICTURE WIDGET ====================
-  Widget _buildProfileAvatar(UserModel? user, {double radius = 18}) {
-    final hasImage = user?.profilePictureUrl != null &&
-        user!.profilePictureUrl.isNotEmpty;
+  Widget _buildProfileAvatar(
+      UserModel? user, {
+        double radius = 18,
+      }) {
+    final hasImage =
+        user?.profilePictureUrl != null &&
+            user!.profilePictureUrl.isNotEmpty;
 
     return CircleAvatar(
       radius: radius,
       backgroundColor: Colors.grey.shade200,
-      backgroundImage: hasImage ? NetworkImage(user.profilePictureUrl) : null,
+      backgroundImage:
+      hasImage ? NetworkImage(user.profilePictureUrl) : null,
       child: hasImage
           ? null
-          : const Icon(Icons.person, color: Colors.grey, size: 20),
+          : const Icon(
+        Icons.person,
+        color: Colors.grey,
+        size: 20,
+      ),
     );
   }
 
-  // ==================== APP BAR ====================
   PreferredSizeWidget _buildAppBar(UserModel? user) {
     return AppBar(
       automaticallyImplyLeading: false,
       backgroundColor: Colors.white,
       elevation: 0,
       title: Text(
-        _currentIndex < _titles.length ? _titles[_currentIndex] : 'Profile',
+        _currentIndex < _titles.length
+            ? _titles[_currentIndex]
+            : 'Profile',
         style: const TextStyle(
           color: Colors.black87,
           fontWeight: FontWeight.bold,
-          fontSize: 22,
+          fontSize: 19,
         ),
       ),
       actions: [
         GestureDetector(
           onTap: () => context.go('/profile'),
           child: Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: _buildProfileAvatar(user, radius: 18),
+            padding: const EdgeInsets.only(right: 12),
+            child: _buildProfileAvatar(
+              user,
+              radius: 15,
+            ),
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.logout, color: Colors.black87),
+          icon: const Icon(
+            Icons.logout,
+            color: Colors.black87,
+          ),
           onPressed: () => Helpers.showLogoutDialog(
             context,
                 () => ref.read(authProvider.notifier).logout(),
@@ -118,33 +151,48 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
   }
 
   // ==================== HOME CONTENT ====================
-  Widget _buildHomeContent(bool isTablet) {
+
+  Widget _buildHomeContent(BuildContext context) {
     final user = ref.watch(userProvider).user;
-    final fullName = '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
+
+    final fullName =
+    '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
+
+    final width = MediaQuery.of(context).size.width;
+
+    final isMobile = width < 600;
+    final isTablet = width >= 600 && width < 1100;
 
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
-      color: Colors.green,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 14 : 24,
+          vertical: isMobile ? 14 : 20,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Welcome
+            // ==================== HERO ====================
+
             Container(
-              padding: const EdgeInsets.all(24),
+              width: double.infinity,
+              padding: EdgeInsets.all(
+                isMobile ? 22 : 30,
+              ),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF22C55E), Color(0xFF15803D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF22C55E),
+                    Color(0xFF15803D),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
-                    blurRadius: 20,
+                    color: Colors.green.withOpacity(0.18),
+                    blurRadius: 22,
                     offset: const Offset(0, 10),
                   ),
                 ],
@@ -154,135 +202,174 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
                 children: [
                   Text(
                     'Hello, ${fullName.isNotEmpty ? fullName : "Client"} 👋',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                    style: TextStyle(
+                      fontSize: isMobile ? 24 : 34,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
+                      letterSpacing: -1,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Find trusted waste collectors near you',
                     style: TextStyle(
-                      fontSize: 16,
                       color: Colors.white70,
+                      fontSize: isMobile ? 14 : 16,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 20 : 28),
 
-            // Search Bar (unchanged)
-            Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.shade300,
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+            // ==================== SEARCH ====================
+
+            TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: TextStyle(
+                fontSize: isMobile ? 14 : 16,
               ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'Search collectors by name or location...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                  )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
+              decoration: InputDecoration(
+                hintText: 'Search collectors...',
+                hintStyle: TextStyle(
+                  color: Colors.grey.shade500,
+                ),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 16 : 20,
+                  vertical: isMobile ? 14 : 18,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 24 : 32),
 
-            // Stats Section - Smaller Cards
+            // ==================== OVERVIEW ====================
+
             const Text(
               'Overview',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
               ),
             ),
+
             const SizedBox(height: 16),
 
-            GridView.count(
-              crossAxisCount: isTablet ? 3 : 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: isTablet ? 1.35 : 1.45, // Reduced size
-              children: const [
-                _StatCard(
-                  title: 'Active Collectors',
-                  value: '120+',
-                  icon: Icons.people,
-                  color: Color(0xFF22C55E),
-                ),
-                _StatCard(
-                  title: 'Pickups Completed',
-                  value: '58',
-                  icon: Icons.local_shipping,
-                  color: Color(0xFF3B82F6),
-                ),
-                _StatCard(
-                  title: 'Waste Recycled',
-                  value: '1.2T',
-                  icon: Icons.recycling,
-                  color: Color(0xFF8B5CF6),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+
+                int crossAxisCount;
+                double childAspectRatio;
+                double spacing;
+
+                if (width >= 1400) {
+                  crossAxisCount = 4;
+                  childAspectRatio = 1.8;
+                  spacing = 20;
+                } else if (width >= 1100) {
+                  crossAxisCount = 4;
+                  childAspectRatio = 1.6;
+                  spacing = 18;
+                } else if (width >= 800) {
+                  crossAxisCount = 3;
+                  childAspectRatio = 1.45;
+                  spacing = 16;
+                } else if (width >= 600) {
+                  crossAxisCount = 2;
+                  childAspectRatio = 1.35;
+                  spacing = 14;
+                } else if (width >= 420) {
+                  crossAxisCount = 2;
+                  childAspectRatio = 1.28;
+                  spacing = 12;
+                } else {
+                  crossAxisCount = 1;
+                  childAspectRatio = 1.9;
+                  spacing = 12;
+                }
+
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  physics:
+                  const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: childAspectRatio,
+                  children: const [
+                    _StatCard(
+                      title: 'Active Collectors',
+                      value: '120+',
+                      icon: Icons.people_alt_rounded,
+                      color: Color(0xFF22C55E),
+                    ),
+                    _StatCard(
+                      title: 'Pickups Completed',
+                      value: '58',
+                      icon:
+                      Icons.local_shipping_rounded,
+                      color: Color(0xFF3B82F6),
+                    ),
+                    _StatCard(
+                      title: 'Waste Recycled',
+                      value: '1.2T',
+                      icon: Icons.recycling_rounded,
+                      color: Color(0xFF8B5CF6),
+                    ),
+                  ],
+                );
+              },
             ),
 
-            const SizedBox(height: 40),
+            SizedBox(height: isMobile ? 28 : 36),
 
-            // Available Collectors (unchanged)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Available Collectors',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.arrow_forward, size: 18),
-                  label: const Text('See all'),
-                ),
-              ],
+            // ==================== COLLECTORS ====================
+
+            const Text(
+              'Available Collectors',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
             ),
+
             const SizedBox(height: 16),
 
             FutureBuilder<List<UserModel>>(
               future: _fetchCollectors(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child:
+                      CircularProgressIndicator(),
                     ),
                   );
                 }
@@ -290,23 +377,26 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
                 final collectors = snapshot.data ?? [];
 
                 if (collectors.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: Text('No collectors found', style: TextStyle(fontSize: 16)),
+                  return const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(
+                      child: Text(
+                        'No collectors found',
+                      ),
                     ),
                   );
                 }
 
                 return ListView.separated(
                   shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics:
+                  const NeverScrollableScrollPhysics(),
                   itemCount: collectors.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final collector = collectors[index];
-                    return _CollectorCard(collector: collector);
-                  },
+                  separatorBuilder: (_, __) =>
+                  const SizedBox(height: 14),
+                  itemBuilder: (_, i) => _CollectorCard(
+                    collector: collectors[i],
+                  ),
                 );
               },
             ),
@@ -316,31 +406,28 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
     );
   }
 
-  // ==================== BODY & NAV ====================
-  Widget _buildBody(bool isTablet) {
+  Widget _buildBody(BuildContext context) {
     switch (_currentIndex) {
       case 0:
-        return _buildHomeContent(isTablet);
+        return _buildHomeContent(context);
+
       case 1:
+        return const SchedulePickupContent();
+
       case 2:
-        return const Center(
-          child: Text(
-            'Feature Coming Soon...',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-          ),
-        );
+        return const PickupHistoryContent();
+
       default:
-        return _buildHomeContent(isTablet);
+        return _buildHomeContent(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProvider).user;
-    final screenWidth = MediaQuery.of(context).size.width;
 
-    final bool isDesktop = screenWidth > 900;
-    final bool isTablet = screenWidth > 700;
+    final isDesktop =
+        MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -350,14 +437,19 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
           if (isDesktop)
             ClientSidebar(
               currentIndex: _currentIndex,
-              onIndexChanged: (index) => setState(() => _currentIndex = index),
+              onIndexChanged: (i) {
+                setState(() {
+                  _currentIndex = i;
+                });
+              },
             ),
           Expanded(
-            child: _buildBody(isTablet),
+            child: _buildBody(context),
           ),
         ],
       ),
-      bottomNavigationBar: isDesktop ? null : _buildBottomNav(user),
+      bottomNavigationBar:
+      isDesktop ? null : _buildBottomNav(user),
     );
   }
 
@@ -367,20 +459,34 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
       type: BottomNavigationBarType.fixed,
       selectedItemColor: Colors.green,
       unselectedItemColor: Colors.grey,
-      elevation: 8,
       onTap: (index) {
         if (index == 3) {
           context.go('/profile');
           return;
         }
-        setState(() => _currentIndex = index);
+
+        setState(() {
+          _currentIndex = index;
+        });
       },
       items: [
-        const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        const BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedule'),
-        const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.schedule),
+          label: 'Schedule',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.history),
+          label: 'History',
+        ),
         BottomNavigationBarItem(
-          icon: _buildProfileAvatar(user, radius: 12),
+          icon: _buildProfileAvatar(
+            user,
+            radius: 11,
+          ),
           label: 'Profile',
         ),
       ],
@@ -388,7 +494,8 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> {
   }
 }
 
-// ==================== COMPACT STAT CARD ====================
+// ==================== PREMIUM RESPONSIVE STAT CARD ====================
+
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -404,44 +511,91 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16), // Reduced padding
+    final width = MediaQuery.of(context).size.width;
+
+    final bool mobile = width < 600;
+    final bool tablet =
+        width >= 600 && width < 1100;
+
+    final double padding =
+    mobile ? 18 : tablet ? 20 : 24;
+
+    final double iconSize =
+    mobile ? 24 : tablet ? 28 : 32;
+
+    final double valueSize =
+    mobile ? 24 : tablet ? 28 : 34;
+
+    final double titleSize =
+    mobile ? 13 : tablet ? 14 : 15;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.grey.shade100,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 18,
             offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        mainAxisAlignment:
+        MainAxisAlignment.spaceBetween,
         children: [
           Container(
-            padding: const EdgeInsets.all(8), // Smaller icon container
+            padding: EdgeInsets.all(
+              mobile ? 10 : 12,
+            ),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withOpacity(0.12),
+              borderRadius:
+              BorderRadius.circular(18),
             ),
-            child: Icon(icon, size: 26, color: color), // Smaller icon
+            child: Icon(
+              icon,
+              color: color,
+              size: iconSize,
+            ),
           ),
+
           const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24, // Slightly smaller
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: valueSize,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                letterSpacing: -1,
+                color: Colors.black87,
+              ),
             ),
           ),
+
+          const SizedBox(height: 6),
+
           Text(
             title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: titleSize,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
               color: Colors.grey.shade600,
             ),
           ),
@@ -451,63 +605,106 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// _CollectorCard remains unchanged...
+// ==================== COLLECTOR CARD ====================
+
 class _CollectorCard extends StatelessWidget {
   final UserModel collector;
 
-  const _CollectorCard({super.key, required this.collector});
+  const _CollectorCard({
+    super.key,
+    required this.collector,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+
+    final isMobile = width < 600;
+
     return GestureDetector(
-      onTap: () => context.go('/profile/${collector.id}'),
+      onTap: () =>
+          context.go('/profile/${collector.id}'),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(
+          isMobile ? 16 : 20,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
               color: Colors.grey.shade200,
               blurRadius: 12,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 32,
-              backgroundColor: Colors.grey.shade100,
-              backgroundImage: collector.profilePictureUrl.isNotEmpty
-                  ? NetworkImage(collector.profilePictureUrl)
+              radius: isMobile ? 28 : 34,
+              backgroundImage:
+              collector.profilePictureUrl
+                  .isNotEmpty
+                  ? NetworkImage(
+                collector
+                    .profilePictureUrl,
+              )
                   : null,
-              child: collector.profilePictureUrl.isEmpty
-                  ? const Icon(Icons.person, size: 32, color: Colors.grey)
+              child:
+              collector.profilePictureUrl
+                  .isEmpty
+                  ? Icon(
+                Icons.person,
+                size:
+                isMobile ? 28 : 32,
+              )
                   : null,
             ),
-            const SizedBox(width: 16),
+
+            SizedBox(width: isMobile ? 14 : 18),
+
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
                   Text(
                     '${collector.firstName} ${collector.lastName}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
+                    maxLines: 1,
+                    overflow:
+                    TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight:
+                      FontWeight.w700,
+                      fontSize:
+                      isMobile ? 15 : 17,
                     ),
                   ),
+
                   const SizedBox(height: 4),
+
                   Text(
                     collector.email,
-                    style: TextStyle(color: Colors.grey.shade600),
+                    maxLines: 1,
+                    overflow:
+                    TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color:
+                      Colors.grey.shade600,
+                      fontSize:
+                      isMobile ? 13 : 14,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.grey),
+
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: isMobile ? 16 : 18,
+              color: Colors.grey.shade500,
+            ),
           ],
         ),
       ),
