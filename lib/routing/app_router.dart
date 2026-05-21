@@ -14,7 +14,6 @@ import 'package:garbigo_frontend/features/social/screens/other_user_profile_scre
 
 // Admin
 import 'package:garbigo_frontend/features/dashboards/admin_dashboard_screen.dart';
-import 'package:garbigo_frontend/features/dashboards/admin_widgets/user_management_screen.dart';
 
 // Dashboards
 import 'package:garbigo_frontend/features/dashboards/client_dashboard_screen.dart';
@@ -75,11 +74,6 @@ class AppRouter {
           path: '/admin/dashboard',
           builder: (context, state) => const AdminDashboardScreen(),
         ),
-        GoRoute(
-          path: '/admin/users',
-          builder: (context, state) => const UserManagementScreen(),
-        ),
-
         // ====================== DASHBOARDS ======================
         GoRoute(
           path: '/dashboard/client',
