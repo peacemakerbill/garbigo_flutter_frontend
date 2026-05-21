@@ -13,8 +13,8 @@ import 'package:garbigo_frontend/features/profile/screens/profile_screen.dart';
 import 'package:garbigo_frontend/features/social/screens/other_user_profile_screen.dart';
 
 // Admin
-import 'package:garbigo_frontend/features/admin/screens/admin_dashboard_screen.dart';
-import 'package:garbigo_frontend/features/admin/screens/user_management_screen.dart';
+import 'package:garbigo_frontend/features/dashboards/admin_dashboard_screen.dart';
+import 'package:garbigo_frontend/features/dashboards/admin_widgets/user_management_screen.dart';
 
 // Dashboards
 import 'package:garbigo_frontend/features/dashboards/client_dashboard_screen.dart';
