@@ -209,9 +209,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               constraints: const BoxConstraints(maxWidth: 620),
               child: Column(
                 children: [
-                  // ====================== PERFECT CIRCLE PROFILE PICTURE ======================
+                  // Profile Picture
                   Card(
-                    elevation: 6,
+                    elevation: 8,
                     shape: const CircleBorder(),
                     child: Container(
                       width: 190,
@@ -221,9 +221,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.green.withOpacity(0.25),
-                            blurRadius: 25,
-                            spreadRadius: 3,
+                            color: Colors.green.withOpacity(0.3),
+                            blurRadius: 30,
+                            spreadRadius: 5,
                           ),
                         ],
                       ),
@@ -252,7 +252,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
                   // Name and Username
                   Text(
@@ -264,15 +264,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
                   // Social Stats
                   if (socialStats != null)
                     Card(
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
@@ -284,34 +284,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
-                  // Profile Information Card
+                  // Main Profile Information Card
                   Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildSectionTitle('Personal Information'),
+                          const SizedBox(height: 12),
                           _buildField('First Name', user?.firstName, _firstNameCtrl, _isEditing),
+                          _buildDivider(),
                           _buildField('Middle Name', user?.middleName, _middleNameCtrl, _isEditing),
+                          _buildDivider(),
                           _buildField('Last Name', user?.lastName, _lastNameCtrl, _isEditing),
 
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 32),
+
                           _buildSectionTitle('Contact & Service'),
+                          const SizedBox(height: 12),
                           _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, _isEditing),
+                          _buildDivider(),
                           _buildField('Home Address', user?.homeAddress, _addressCtrl, _isEditing),
+                          _buildDivider(),
                           _buildField('Waste Preferences', user?.wastePreferences, _wastePrefCtrl, _isEditing),
+                          _buildDivider(),
                           _buildField('Collection Schedule', user?.collectionSchedule, _scheduleCtrl, _isEditing),
                         ],
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 32),
 
                   if (_isEditing)
                     SizedBox(
@@ -337,13 +345,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  // ==================== HELPER WIDGETS ====================
+
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
+    return Text(
+      title,
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 20,
+        color: Colors.green,
       ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: Divider(height: 1, thickness: 1, color: Colors.black12),
     );
   }
 
@@ -351,10 +369,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!isEditing) {
       return ListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
         subtitle: Text(
           value?.isNotEmpty == true ? value! : 'Not provided',
-          style: const TextStyle(fontSize: 16),
+          style: const TextStyle(fontSize: 16.5, height: 1.4),
         ),
       );
     }
@@ -376,8 +397,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildStatItem(String label, dynamic value) {
     return Column(
       children: [
-        Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+        Text(
+          '$value',
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 13.5),
+        ),
       ],
     );
   }
