@@ -15,16 +15,26 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // Still restoring session → don't redirect
+    // Still restoring session--don't redirect
     if (authState.isRestoring) {
       return null;
     }
 
     final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
-    final isAuthPath = ['/signin', '/signup', '/verify', '/forgot', '/reset']
-        .contains(matchedLocation);
 
-    // 1. Unauthenticated users → force login
+    // Updated list of allowed auth routes
+    final isAuthPath = [
+      '/signin',
+      '/signup',
+      '/verify',
+      '/auth/verify',
+      '/resend-verification',
+      '/forgot',
+      '/reset',
+      '/auth/reset-password/confirm',
+    ].contains(matchedLocation);
+
+    // 1. Unauthenticated users --force login (except auth pages)
     if (!isLoggedIn) {
       return isAuthPath ? null : '/signin';
     }
@@ -42,14 +52,13 @@ class RouterNotifier extends ChangeNotifier {
     ];
 
     final isAllowedRoute = allowedRoutes.any((route) =>
-    matchedLocation == route ||
-        matchedLocation.startsWith('$route/'));
+    matchedLocation == route || matchedLocation.startsWith('$route/'));
 
     if (isAllowedRoute) {
-      return null; // Allow access
+      return null;
     }
 
-    // 3. Default dashboard redirect (only for root or auth pages)
+    // 3. Default dashboard redirect
     if (isAuthPath || matchedLocation == '/' || matchedLocation.isEmpty) {
       final role = userState.user?.role ?? authState.role ?? 'CLIENT';
       switch (role) {
@@ -69,7 +78,6 @@ class RouterNotifier extends ChangeNotifier {
       }
     }
 
-    // Fallback: allow other routes
     return null;
   }
 }

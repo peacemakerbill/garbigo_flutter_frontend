@@ -7,7 +7,7 @@ import 'package:garbigo_frontend/features/auth/screens/signup_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/verify_email_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/forgot_password_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/reset_password_screen.dart';
-import 'package:garbigo_frontend/features/auth/screens/resend_verification_screen.dart';  // ← New import
+import 'package:garbigo_frontend/features/auth/screens/resend_verification_screen.dart';
 
 // Profile & Social
 import 'package:garbigo_frontend/features/profile/screens/profile_screen.dart';
@@ -24,8 +24,6 @@ import 'package:garbigo_frontend/features/dashboards/finance_dashboard_screen.da
 import 'package:garbigo_frontend/features/dashboards/support_dashboard_screen.dart';
 
 class AppRouter {
-  /// Pass only the [RouterNotifier] — it already holds a [Ref] internally,
-  /// so there is no need to pass a [WidgetRef] from the widget tree.
   static GoRouter createRouter(RouterNotifier notifier) {
     return GoRouter(
       initialLocation: '/signin',
@@ -41,6 +39,8 @@ class AppRouter {
           path: '/signup',
           builder: (context, state) => const SignupScreen(),
         ),
+
+        // Email Verification
         GoRoute(
           path: '/verify',
           builder: (context, state) => VerifyEmailScreen(
@@ -48,21 +48,39 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: '/auth/verify',
+          builder: (context, state) => VerifyEmailScreen(
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+        ),
+
+        // Resend Verification
+        GoRoute(
           path: '/resend-verification',
           builder: (context, state) => const ResendVerificationScreen(),
         ),
+
+        // Forgot Password
         GoRoute(
           path: '/forgot',
           builder: (context, state) => const ForgotPasswordScreen(),
         ),
+
+        // Password Reset - Handle both current and backend email link
         GoRoute(
           path: '/reset',
           builder: (context, state) => ResetPasswordScreen(
             token: state.uri.queryParameters['token'] ?? '',
           ),
         ),
+        GoRoute(
+          path: '/auth/reset-password/confirm',
+          builder: (context, state) => ResetPasswordScreen(
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+        ),
 
-        // ====================== PROFILE ROUTES ======================
+        // ====================== OTHER ROUTES ======================
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
@@ -73,14 +91,10 @@ class AppRouter {
             userId: state.pathParameters['id']!,
           ),
         ),
-
-        // ====================== ADMIN ROUTES ======================
         GoRoute(
           path: '/admin/dashboard',
           builder: (context, state) => const AdminDashboardScreen(),
         ),
-
-        // ====================== DASHBOARDS ======================
         GoRoute(
           path: '/dashboard/client',
           builder: (context, state) => const ClientDashboardScreen(),

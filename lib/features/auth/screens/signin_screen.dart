@@ -38,7 +38,6 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final authNotifier = ref.read(authProvider.notifier);
     final isLargeScreen = MediaQuery.of(context).size.width > 700;
 
     ref.listen(authProvider, (previous, next) {
@@ -75,9 +74,7 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6)),
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6))],
       ),
       child: Row(
         children: [
@@ -101,17 +98,11 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
                     SizedBox(height: 24),
                     Text(
                       "Welcome to ${AppStrings.appName}",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, height: 1.3),
                     ),
                     SizedBox(height: 16),
                     Text(
-                      "Sign in to manage your waste collection services, "
-                          "track pickups, and earn rewards for recycling.",
+                      "Sign in to manage your waste collection services, track pickups, and earn rewards for recycling.",
                       style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
                     ),
                   ],
@@ -119,10 +110,7 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
               ),
             ),
           ),
-          Expanded(
-            flex: 1,
-            child: _buildFormCard(context, withPadding: true),
-          ),
+          Expanded(flex: 1, child: _buildFormCard(context, withPadding: true)),
         ],
       ),
     );
@@ -136,28 +124,15 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6)),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6))],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.recycling, color: Theme.of(context).primaryColor, size: 90),
             const SizedBox(height: 16),
-            Text(
-              AppStrings.appName,
-              style: TextStyle(
-                fontSize: 26,
-                color: Theme.of(context).primaryColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(AppStrings.appName, style: TextStyle(fontSize: 26, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text(
-              "Sign in to continue",
-              style: TextStyle(color: Colors.black54),
-            ),
+            const Text("Sign in to continue", style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 32),
             _buildFormCard(context),
           ],
@@ -168,7 +143,6 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
 
   Widget _buildFormCard(BuildContext context, {bool withPadding = false}) {
     final authState = ref.watch(authProvider);
-    final authNotifier = ref.read(authProvider.notifier);
 
     final form = Form(
       key: _formKey,
@@ -195,7 +169,7 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
             controller: _passwordController,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _submitForm(), // ← Enter key triggers login
+            onFieldSubmitted: (_) => _submitForm(),
             decoration: InputDecoration(
               labelText: 'Password',
               hintText: 'Enter your password',
@@ -212,9 +186,10 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
               return null;
             },
           ),
+
           const SizedBox(height: 8),
 
-          // Forgot Password & Resend Verification
+          // Resend Verification + Forgot Password
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -240,11 +215,9 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
                 onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text(AppStrings.signin, style: TextStyle(fontSize: 18)),
+                child: Text(AppStrings.signin, style: const TextStyle(fontSize: 18)),
               ),
             ),
 
@@ -263,48 +236,22 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
           const SizedBox(height: 32),
           const Text('Or continue with'),
           const SizedBox(height: 16),
-
-          // Social Login Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: const Icon(Icons.g_mobiledata, color: Colors.red, size: 32),
-                ),
-                onPressed: authNotifier.googleLogin,
+                icon: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)), child: const Icon(Icons.g_mobiledata, color: Colors.red, size: 32)),
+                onPressed: ref.read(authProvider.notifier).googleLogin,
               ),
               const SizedBox(width: 16),
               IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: const Icon(Icons.facebook, color: Colors.blue, size: 32),
-                ),
-                onPressed: authNotifier.facebookLogin,
+                icon: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)), child: const Icon(Icons.facebook, color: Colors.blue, size: 32)),
+                onPressed: ref.read(authProvider.notifier).facebookLogin,
               ),
               const SizedBox(width: 16),
               IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: const Icon(Icons.apple, color: Colors.white, size: 32),
-                ),
-                onPressed: authNotifier.appleLogin,
+                icon: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)), child: const Icon(Icons.apple, color: Colors.white, size: 32)),
+                onPressed: ref.read(authProvider.notifier).appleLogin,
               ),
             ],
           ),
@@ -313,10 +260,7 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
     );
 
     return withPadding
-        ? Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 48),
-      child: Center(child: SingleChildScrollView(child: form)),
-    )
+        ? Padding(padding: const EdgeInsets.symmetric(horizontal: 48), child: Center(child: SingleChildScrollView(child: form)))
         : form;
   }
 }
