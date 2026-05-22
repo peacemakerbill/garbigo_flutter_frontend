@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
@@ -25,9 +26,24 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     super.dispose();
   }
 
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final authNotifier = ref.read(authProvider.notifier);
+      authNotifier.resetPassword(widget.token, _passwordController.text);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     final isLargeScreen = MediaQuery.of(context).size.width > 700;
+
+    // Auto redirect after successful password reset
+    if (authState.passwordResetSuccess && !authState.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/signin');
+      });
+    }
 
     return Scaffold(
       body: Container(
@@ -43,15 +59,15 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             child: isLargeScreen
-                ? _buildWideLayout(context)
-                : _buildMobileLayout(context),
+                ? _buildWideLayout(context, authState)
+                : _buildMobileLayout(context, authState),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildWideLayout(BuildContext context) {
+  Widget _buildWideLayout(BuildContext context, AuthState authState) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 800, maxHeight: 500),
       decoration: BoxDecoration(
@@ -103,14 +119,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           ),
           Expanded(
             flex: 1,
-            child: _buildFormContent(context, withPadding: true),
+            child: _buildFormContent(context, authState, withPadding: true),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
+  Widget _buildMobileLayout(BuildContext context, AuthState authState) {
     return SingleChildScrollView(
       child: Container(
         margin: const EdgeInsets.all(24),
@@ -140,17 +156,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 32),
-            _buildFormContent(context),
+            _buildFormContent(context, authState),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFormContent(BuildContext context, {bool withPadding = false}) {
-    final authState = ref.watch(authProvider);
-    final authNotifier = ref.read(authProvider.notifier);
-
+  Widget _buildFormContent(BuildContext context, AuthState authState, {bool withPadding = false}) {
     final form = Form(
       key: _formKey,
       child: Column(
@@ -160,6 +173,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'New Password',
               hintText: 'Enter new password',
@@ -178,6 +192,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           TextFormField(
             controller: _confirmController,
             obscureText: _obscureConfirm,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitForm(),
             decoration: InputDecoration(
               labelText: 'Confirm Password',
               hintText: 'Re-enter new password',
@@ -199,11 +215,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    authNotifier.resetPassword(widget.token, _passwordController.text);
-                  }
-                },
+                onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -218,6 +230,16 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Text(authState.error!, style: const TextStyle(color: Colors.red)),
+            ),
+
+          if (authState.passwordResetSuccess)
+            const Padding(
+              padding: EdgeInsets.only(top: 16),
+              child: Text(
+                'Password reset successful!\nRedirecting to sign in...',
+                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
             ),
         ],
       ),

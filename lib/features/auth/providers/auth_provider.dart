@@ -17,6 +17,7 @@ class AuthState {
   final String? role;
   final bool verified;
   final bool isRestoring;
+  final bool passwordResetSuccess;
 
   AuthState({
     this.isLoading = false,
@@ -25,6 +26,7 @@ class AuthState {
     this.role,
     this.verified = false,
     this.isRestoring = true,
+    this.passwordResetSuccess = false,
   });
 
   AuthState copyWith({
@@ -34,6 +36,7 @@ class AuthState {
     String? role,
     bool? verified,
     bool? isRestoring,
+    bool? passwordResetSuccess,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -42,6 +45,7 @@ class AuthState {
       role: role ?? this.role,
       verified: verified ?? this.verified,
       isRestoring: isRestoring ?? this.isRestoring,
+      passwordResetSuccess: passwordResetSuccess ?? this.passwordResetSuccess,
     );
   }
 }
@@ -54,7 +58,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final Ref ref;
 
   // ==================== SESSION RESTORE ====================
-
   Future<void> _restoreSession() async {
     final storage = ref.read(secureStorageProvider);
     final token = await storage.read(key: 'auth_token');
@@ -112,19 +115,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       Helpers.showToast('Login successful');
     } catch (e) {
       String errorMessage = 'Login failed';
-
       if (e is DioException) {
         final responseData = e.response?.data;
         if (responseData is Map) {
-          errorMessage = responseData['message'] ??
-              responseData['error'] ??
-              e.response?.statusMessage ??
-              'Invalid credentials';
+          errorMessage = responseData['message'] ?? responseData['error'] ?? 'Invalid credentials';
         } else if (responseData is String) {
           errorMessage = responseData;
         }
       }
-
       state = state.copyWith(isLoading: false, error: errorMessage);
       Helpers.showToast(errorMessage, isError: true);
     }
@@ -155,18 +153,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       Helpers.showToast('Signup successful! Please check your email to verify.');
     } catch (e) {
       String errorMessage = 'Signup failed';
-
       if (e is DioException) {
         final responseData = e.response?.data;
         if (responseData is Map) {
-          errorMessage = responseData['message'] ??
-              responseData['error'] ??
-              'Please check your information';
+          errorMessage = responseData['message'] ?? responseData['error'] ?? 'Please check your information';
         } else if (responseData is String) {
           errorMessage = responseData;
         }
       }
-
       state = state.copyWith(isLoading: false, error: errorMessage);
       Helpers.showToast(errorMessage, isError: true);
     }
@@ -188,18 +182,44 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> resetPassword(String token, String newPassword) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      passwordResetSuccess: false,
+    );
+
     try {
       final dio = Dio(BaseOptions(baseUrl: AppConfig.authBase));
       await dio.post(
         '/reset-password/confirm?token=$token',
         data: {'newPassword': newPassword},
       );
-      state = state.copyWith(isLoading: false);
-      Helpers.showToast('Password reset successful');
+
+      state = state.copyWith(
+        isLoading: false,
+        passwordResetSuccess: true,
+        error: null,
+      );
+
+      Helpers.showToast('Password reset successful! Redirecting to login...');
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Password reset failed', isError: true);
+      String errorMsg = 'Password reset failed';
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMsg = responseData['message'] ?? responseData['error'] ?? 'Password reset failed';
+        } else if (responseData is String) {
+          errorMsg = responseData;
+        }
+      }
+
+      state = state.copyWith(
+        isLoading: false,
+        error: errorMsg,
+        passwordResetSuccess: false,
+      );
+
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
@@ -347,7 +367,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ==================== LOGOUT ====================
-
   Future<void> logout() async {
     await _clearToken();
 
