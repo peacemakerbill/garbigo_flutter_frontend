@@ -166,7 +166,7 @@ class UserNotifier extends StateNotifier<UserState> {
               'Operation failed';
         }
 
-        // Case 2: Raw string response (what you're getting now)
+        // Case 2: Raw string response
         if (data is String) {
           return data.trim();
         }
