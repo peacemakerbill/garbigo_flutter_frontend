@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/core/network/api_client.dart';
@@ -49,12 +50,12 @@ class UserNotifier extends StateNotifier<UserState> {
 
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Failed to load profile', isError: true);
+      final errorMsg = _extractErrorMessage(e);
+      state = state.copyWith(isLoading: false, error: errorMsg);
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
-  /// Set user directly from login/signup response (avoids extra network call)
   void setCurrentUser(UserModel user) {
     state = state.copyWith(user: user, isLoading: false);
   }
@@ -76,8 +77,9 @@ class UserNotifier extends StateNotifier<UserState> {
 
       state = state.copyWith(allUsers: users, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Failed to load users', isError: true);
+      final errorMsg = _extractErrorMessage(e);
+      state = state.copyWith(isLoading: false, error: errorMsg);
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
@@ -87,11 +89,14 @@ class UserNotifier extends StateNotifier<UserState> {
       final dio = ref.read(dioProvider);
       dio.options.baseUrl = AppConfig.usersBase;
 
-      await dio.put('/$userId/$action');
+      final response = await dio.put('/$userId/$action');
+
+      final message = _extractSuccessMessage(response.data) ?? '$action successful';
       await getAllUsers();
-      Helpers.showToast('$action successful');
+      Helpers.showToast(message);
     } catch (e) {
-      Helpers.showToast('Action failed: ${e.toString()}', isError: true);
+      final errorMsg = _extractErrorMessage(e);
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
@@ -100,12 +105,99 @@ class UserNotifier extends StateNotifier<UserState> {
       final dio = ref.read(dioProvider);
       dio.options.baseUrl = AppConfig.usersBase;
 
-      await dio.delete('/$userId');
+      final response = await dio.delete('/$userId');
+
+      final message = _extractSuccessMessage(response.data) ?? 'User deleted successfully';
       await getAllUsers();
-      Helpers.showToast('User deleted successfully');
+      Helpers.showToast(message);
     } catch (e) {
-      Helpers.showToast('Delete failed', isError: true);
+      final errorMsg = _extractErrorMessage(e);
+      Helpers.showToast(errorMsg, isError: true);
     }
+  }
+
+  Future<void> createUser(Map<String, dynamic> userData) async {
+    try {
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
+      final response = await dio.post('', data: userData);
+
+      final message = _extractSuccessMessage(response.data) ?? 'User created successfully';
+      await getAllUsers();
+      Helpers.showToast(message);
+    } catch (e) {
+      final errorMsg = _extractErrorMessage(e);
+      Helpers.showToast(errorMsg, isError: true);
+    }
+  }
+
+  Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
+    try {
+      final dio = ref.read(dioProvider);
+      dio.options.baseUrl = AppConfig.usersBase;
+
+      final response = await dio.put('/$userId', data: userData);
+
+      final message = _extractSuccessMessage(response.data) ?? 'User updated successfully';
+      await getAllUsers();
+      Helpers.showToast(message);
+    } catch (e) {
+      final errorMsg = _extractErrorMessage(e);
+      Helpers.showToast(errorMsg, isError: true);
+    }
+  }
+
+  // ==================== ROBUST ERROR HANDLING ====================
+  String _extractErrorMessage(dynamic e) {
+    if (e is DioException) {
+      final response = e.response;
+
+      if (response?.data != null) {
+        final data = response!.data;
+
+        // Case 1: JSON response with message field
+        if (data is Map<String, dynamic>) {
+          return data['message'] ??
+              data['error'] ??
+              data['errorMessage'] ??
+              data['details'] ??
+              e.message ??
+              'Operation failed';
+        }
+
+        // Case 2: Raw string response (what you're getting now)
+        if (data is String) {
+          return data.trim();
+        }
+      }
+
+      // Fallback for network/timeout errors
+      if (e.type == DioExceptionType.connectionTimeout) {
+        return 'Connection timeout. Please check your internet.';
+      }
+      if (e.type == DioExceptionType.receiveTimeout) {
+        return 'Server took too long to respond.';
+      }
+
+      if (e.message != null && e.message!.isNotEmpty) {
+        return e.message!;
+      }
+    }
+
+    // Final fallback
+    final errorStr = e.toString();
+    return errorStr.length > 200 ? 'An unexpected error occurred' : errorStr;
+  }
+
+  String? _extractSuccessMessage(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data['message']?.toString();
+    }
+    if (data is String) {
+      return data;
+    }
+    return null;
   }
 
   // ==================== PROFILE UPDATE ====================
@@ -118,7 +210,8 @@ class UserNotifier extends StateNotifier<UserState> {
       await fetchCurrentUser();
       Helpers.showToast('Profile updated successfully');
     } catch (e) {
-      Helpers.showToast('Profile update failed', isError: true);
+      final errorMsg = _extractErrorMessage(e);
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
