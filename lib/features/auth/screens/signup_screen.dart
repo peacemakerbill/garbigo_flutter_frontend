@@ -37,8 +37,31 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     super.dispose();
   }
 
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final authNotifier = ref.read(authProvider.notifier);
+      authNotifier.signup({
+        'username': _usernameController.text.trim(),
+        'firstName': _firstNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phoneNumber': _phoneController.text.trim(),
+        'homeAddress': _addressController.text.trim(),
+        'password': _passwordController.text,
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // When signup succeeds, signupSuccess becomes true and there is no token,
+    // so the router will not interfere. Navigate explicitly to /signin.
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.signupSuccess && !next.isLoading && next.token == null) {
+        context.go('/signin');
+      }
+    });
+
     final isLargeScreen = MediaQuery.of(context).size.width > 700;
 
     return Scaffold(
@@ -85,16 +108,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   bottomLeft: Radius.circular(16),
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(40),
+              child: const Padding(
+                padding: EdgeInsets.all(40),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.recycling, color: Colors.white, size: 80),
-                    const SizedBox(height: 24),
-                    const Text(
-                      "Join ${AppStrings.appName} Today",
+                    Icon(Icons.recycling, color: Colors.white, size: 80),
+                    SizedBox(height: 24),
+                    Text(
+                      "Join Garbigo Today",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 26,
@@ -102,30 +125,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      "Create an account to start recycling, "
-                          "schedule waste pickups, and earn rewards "
-                          "for your environmental contributions.",
+                    SizedBox(height: 16),
+                    Text(
+                      "Create an account to start recycling, schedule waste pickups, and earn rewards.",
                       style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
-                    ),
-                    const SizedBox(height: 32),
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.green.shade300),
-                      title: const Text("Easy waste scheduling", style: TextStyle(color: Colors.white)),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.green.shade300),
-                      title: const Text("Rewards for recycling", style: TextStyle(color: Colors.white)),
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.check_circle, color: Colors.green.shade300),
-                      title: const Text("Real-time tracking", style: TextStyle(color: Colors.white)),
-                    ),
-                    const SizedBox(height: 32),
-                    const Text(
-                      "Sign up faster with social media",
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                   ],
                 ),
@@ -181,7 +184,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Widget _buildFormContent(BuildContext context, {bool withPadding = false}) {
     final authState = ref.watch(authProvider);
-    final authNotifier = ref.read(authProvider.notifier);
 
     final form = Form(
       key: _formKey,
@@ -230,6 +232,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Email',
               prefixIcon: const Icon(Icons.email),
@@ -242,6 +245,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           TextFormField(
             controller: _phoneController,
             keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Phone Number',
               prefixIcon: const Icon(Icons.phone),
@@ -252,6 +256,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
           TextFormField(
             controller: _addressController,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Home Address',
               prefixIcon: const Icon(Icons.home),
@@ -263,6 +268,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Password',
               prefixIcon: const Icon(Icons.lock),
@@ -279,6 +285,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: _obscureConfirm,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitForm(),
             decoration: InputDecoration(
               labelText: 'Confirm Password',
               prefixIcon: const Icon(Icons.lock),
@@ -298,19 +306,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    authNotifier.signup({
-                      'username': _usernameController.text,
-                      'firstName': _firstNameController.text,
-                      'lastName': _lastNameController.text,
-                      'email': _emailController.text,
-                      'phoneNumber': _phoneController.text,
-                      'homeAddress': _addressController.text,
-                      'password': _passwordController.text,
-                    });
-                  }
-                },
+                onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -329,7 +325,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
           const SizedBox(height: 32),
 
-          // Social Media Signup Section
           const Text('Or sign up with'),
           const SizedBox(height: 16),
           Row(
@@ -345,7 +340,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   child: const Icon(Icons.g_mobiledata, color: Colors.red, size: 32),
                 ),
-                onPressed: authNotifier.googleLogin,
+                onPressed: ref.read(authProvider.notifier).googleLogin,
               ),
               const SizedBox(width: 16),
               IconButton(
@@ -358,7 +353,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   child: const Icon(Icons.facebook, color: Colors.blue, size: 32),
                 ),
-                onPressed: authNotifier.facebookLogin,
+                onPressed: ref.read(authProvider.notifier).facebookLogin,
               ),
               const SizedBox(width: 16),
               IconButton(
@@ -371,7 +366,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   child: const Icon(Icons.apple, color: Colors.white, size: 32),
                 ),
-                onPressed: authNotifier.appleLogin,
+                onPressed: ref.read(authProvider.notifier).appleLogin,
               ),
             ],
           ),

@@ -15,14 +15,15 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // Still restoring session--don't redirect
+    // Still restoring session → don't redirect
     if (authState.isRestoring) {
       return null;
     }
 
     final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
+    final isVerified = authState.verified;
 
-    // Updated list of allowed auth routes
+    // All allowed auth-related paths
     final isAuthPath = [
       '/signin',
       '/signup',
@@ -34,12 +35,21 @@ class RouterNotifier extends ChangeNotifier {
       '/auth/reset-password/confirm',
     ].contains(matchedLocation);
 
-    // 1. Unauthenticated users --force login (except auth pages)
+    // 1. Not logged in → force to signin (except auth pages)
     if (!isLoggedIn) {
       return isAuthPath ? null : '/signin';
     }
 
-    // 2. Protected routes that are always allowed when logged in
+    // 2. Logged in BUT NOT VERIFIED → block access to dashboard
+    if (isLoggedIn && !isVerified) {
+      if (isAuthPath) {
+        return null; // Allow auth pages
+      }
+      // Force unverified users back to signin
+      return '/signin';
+    }
+
+    // 3. Verified user accessing protected routes
     const allowedRoutes = [
       '/profile',
       '/dashboard/client',
@@ -58,7 +68,7 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 3. Default dashboard redirect
+    // 4. Default dashboard redirect for verified users
     if (isAuthPath || matchedLocation == '/' || matchedLocation.isEmpty) {
       final role = userState.user?.role ?? authState.role ?? 'CLIENT';
       switch (role) {

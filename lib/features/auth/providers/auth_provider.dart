@@ -18,6 +18,7 @@ class AuthState {
   final bool verified;
   final bool isRestoring;
   final bool passwordResetSuccess;
+  final bool signupSuccess;
 
   AuthState({
     this.isLoading = false,
@@ -27,6 +28,7 @@ class AuthState {
     this.verified = false,
     this.isRestoring = true,
     this.passwordResetSuccess = false,
+    this.signupSuccess = false,
   });
 
   AuthState copyWith({
@@ -37,6 +39,7 @@ class AuthState {
     bool? verified,
     bool? isRestoring,
     bool? passwordResetSuccess,
+    bool? signupSuccess,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -46,6 +49,7 @@ class AuthState {
       verified: verified ?? this.verified,
       isRestoring: isRestoring ?? this.isRestoring,
       passwordResetSuccess: passwordResetSuccess ?? this.passwordResetSuccess,
+      signupSuccess: signupSuccess ?? this.signupSuccess,
     );
   }
 }
@@ -129,26 +133,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signup(Map<String, dynamic> data) async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, error: null, signupSuccess: false);
     try {
       final dio = Dio(BaseOptions(baseUrl: AppConfig.authBase));
-      final response = await dio.post('/signup', data: data);
-      final auth = AuthResponseModel.fromJson(response.data);
+      await dio.post('/signup', data: data);
 
-      await _saveToken(auth.token, auth.role);
-
-      state = state.copyWith(
-        token: auth.token,
-        role: auth.role,
-        verified: auth.verified,
-        isLoading: false,
+      // Do not save the token or update auth state with a session.
+      // The user must verify their email before they can log in.
+      // signupSuccess is the only flag set so the screen can react and
+      // navigate to /signin without the router seeing a logged-in user.
+      state = AuthState(
+        isRestoring: false,
+        signupSuccess: true,
       );
-
-      if (auth.user != null) {
-        ref.read(userProvider.notifier).setCurrentUser(auth.user!);
-      } else {
-        ref.read(userProvider.notifier).fetchCurrentUser();
-      }
 
       Helpers.showToast('Signup successful! Please check your email to verify.');
     } catch (e) {
@@ -167,7 +164,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ==================== PASSWORD MANAGEMENT ====================
-
   Future<void> forgotPassword(String email) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -224,7 +220,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ==================== EMAIL VERIFICATION ====================
-
   Future<void> verifyEmail(String token) async {
     if (token.isEmpty) {
       state = state.copyWith(isLoading: false, error: 'Invalid verification token');
@@ -286,7 +281,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ==================== SOCIAL LOGINS ====================
-
   Future<void> googleLogin() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
