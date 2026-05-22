@@ -45,6 +45,11 @@ class _ClientDashboardScreenState
   }
 
   Future<List<UserModel>> _fetchCollectors() async {
+    // If there is no token the user has logged out. Return silently so the
+    // catch block never fires a toast against a cleared session.
+    final token = ref.read(authProvider).token;
+    if (token == null || token.isEmpty) return [];
+
     try {
       final dio = ref.read(dioProvider);
       dio.options.baseUrl = AppConfig.baseUrl;
@@ -59,10 +64,13 @@ class _ClientDashboardScreenState
 
       return data.map((json) => UserModel.fromJson(json)).toList();
     } catch (e) {
-      Helpers.showToast(
-        'Failed to load collectors',
-        isError: true,
-      );
+      // Only show the error toast when we know the user is still logged in,
+      // which prevents a stale in-flight request from toasting after logout.
+      if (!mounted) return [];
+      final stillLoggedIn = ref.read(authProvider).token != null;
+      if (stillLoggedIn) {
+        Helpers.showToast('Failed to load collectors', isError: true);
+      }
       return [];
     }
   }

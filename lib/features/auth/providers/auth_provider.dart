@@ -116,7 +116,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         ref.read(userProvider.notifier).fetchCurrentUser();
       }
 
-      Helpers.showToast('Login successful');
+      // No toast here — the signin screen's ref.listen fires the single
+      // "Logged in successfully" message when it sees the token appear.
     } catch (e) {
       String errorMessage = 'Login failed';
       if (e is DioException) {
@@ -301,7 +302,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
       ref.read(userProvider.notifier).fetchCurrentUser();
-      Helpers.showToast('Google login successful');
+
+      // No toast here — the signin screen's ref.listen handles it.
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       Helpers.showToast('Google login failed', isError: true);
@@ -327,6 +329,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
         );
         ref.read(userProvider.notifier).fetchCurrentUser();
+
+        // No toast here — the signin screen's ref.listen handles it.
       }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -354,6 +358,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
       ref.read(userProvider.notifier).fetchCurrentUser();
+
+      // No toast here — the signin screen's ref.listen handles it.
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       Helpers.showToast('Apple login failed', isError: true);
@@ -364,10 +370,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     await _clearToken();
 
+    // Clear state first so dependent providers see no token and skip
+    // any refetch attempts before the toast appears.
     state = AuthState(isRestoring: false);
     ref.read(userProvider.notifier).clear();
     ref.read(liveLocationProvider.notifier).stopTracking();
 
+    // Single logout toast — no other provider should show one.
     Helpers.showToast('Logged out successfully');
   }
 }
