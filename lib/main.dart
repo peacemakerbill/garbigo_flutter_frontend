@@ -6,9 +6,7 @@ import 'package:garbigo_frontend/core/constants/app_themes.dart';
 import 'package:garbigo_frontend/routing/app_router.dart';
 import 'package:garbigo_frontend/routing/router_notifier.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
-import 'package:garbigo_frontend/features/location/providers/live_location_provider.dart';
 
-// Created once, never disposed — survives all rebuilds.
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.read(routerNotifierProvider);
   return AppRouter.createRouter(notifier);
@@ -30,16 +28,27 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use read, not watch — router must never be recreated.
     final router = ref.read(routerProvider);
+    final authState = ref.watch(authProvider);
 
-    ref.listen<AuthState>(authProvider, (previous, next) {
-      if (next.token != null && next.role == 'COLLECTOR') {
-        Future.delayed(const Duration(seconds: 2), () {
-          ref.read(liveLocationProvider.notifier).requestPermissionAndStart();
-        });
-      }
-    });
+    // Show loading screen while restoring session on page reload
+    if (authState.isRestoring) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Restoring session...', style: TextStyle(fontSize: 16)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return MaterialApp.router(
       title: 'Garbigo',

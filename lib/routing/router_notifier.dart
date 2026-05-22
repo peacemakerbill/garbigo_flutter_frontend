@@ -15,7 +15,7 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // Still restoring session → don't redirect
+    // IMPORTANT: Wait until session restoration is complete
     if (authState.isRestoring) {
       return null;
     }
@@ -42,15 +42,11 @@ class RouterNotifier extends ChangeNotifier {
 
     // 2. Logged in BUT NOT VERIFIED → block access to dashboard
     if (isLoggedIn && !isVerified) {
-      if (isAuthPath) {
-        return null; // Allow auth pages
-      }
-      // Force unverified users back to signin
-      return '/signin';
+      return isAuthPath ? null : '/signin';
     }
 
-    // 3. Verified user accessing protected routes
-    const allowedRoutes = [
+    // 3. Protected routes
+    const protectedRoutes = [
       '/profile',
       '/dashboard/client',
       '/dashboard/collector',
@@ -58,14 +54,13 @@ class RouterNotifier extends ChangeNotifier {
       '/dashboard/finance',
       '/dashboard/support',
       '/admin/dashboard',
-      '/admin/users',
     ];
 
-    final isAllowedRoute = allowedRoutes.any((route) =>
+    final isProtectedRoute = protectedRoutes.any((route) =>
     matchedLocation == route || matchedLocation.startsWith('$route/'));
 
-    if (isAllowedRoute) {
-      return null;
+    if (isProtectedRoute) {
+      return null; // Allow access
     }
 
     // 4. Default dashboard redirect for verified users

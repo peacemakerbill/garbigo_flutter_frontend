@@ -64,17 +64,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ==================== SESSION RESTORE ====================
   Future<void> _restoreSession() async {
     final storage = ref.read(secureStorageProvider);
-    final token = await storage.read(key: 'auth_token');
-    final role = await storage.read(key: 'auth_role');
 
-    if (token != null && token.isNotEmpty) {
-      state = state.copyWith(
-        token: token,
-        role: role,
-        isRestoring: false,
-      );
-      ref.read(userProvider.notifier).fetchCurrentUser();
-    } else {
+    try {
+      final token = await storage.read(key: 'auth_token');
+      final role = await storage.read(key: 'auth_role');
+
+      if (token != null && token.isNotEmpty) {
+        state = state.copyWith(
+          token: token,
+          role: role,
+          verified: true, // Assume verified if token exists
+          isRestoring: false,
+        );
+
+        // Fetch current user data
+        await ref.read(userProvider.notifier).fetchCurrentUser();
+      } else {
+        state = state.copyWith(isRestoring: false);
+      }
+    } catch (e) {
+      print('Session restore error: $e');
       state = state.copyWith(isRestoring: false);
     }
   }
@@ -115,9 +124,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         ref.read(userProvider.notifier).fetchCurrentUser();
       }
-
-      // No toast here — the signin screen's ref.listen fires the single
-      // "Logged in successfully" message when it sees the token appear.
     } catch (e) {
       String errorMessage = 'Login failed';
       if (e is DioException) {
@@ -139,10 +145,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final dio = Dio(BaseOptions(baseUrl: AppConfig.authBase));
       await dio.post('/signup', data: data);
 
-      // Do not save the token or update auth state with a session.
-      // The user must verify their email before they can log in.
-      // signupSuccess is the only flag set so the screen can react and
-      // navigate to /signin without the router seeing a logged-in user.
       state = AuthState(
         isRestoring: false,
         signupSuccess: true,
@@ -302,8 +304,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
       ref.read(userProvider.notifier).fetchCurrentUser();
-
-      // No toast here — the signin screen's ref.listen handles it.
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       Helpers.showToast('Google login failed', isError: true);
@@ -329,8 +329,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
         );
         ref.read(userProvider.notifier).fetchCurrentUser();
-
-        // No toast here — the signin screen's ref.listen handles it.
       }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -358,8 +356,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
       ref.read(userProvider.notifier).fetchCurrentUser();
-
-      // No toast here — the signin screen's ref.listen handles it.
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       Helpers.showToast('Apple login failed', isError: true);
@@ -370,13 +366,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     await _clearToken();
 
-    // Clear state first so dependent providers see no token and skip
-    // any refetch attempts before the toast appears.
     state = AuthState(isRestoring: false);
     ref.read(userProvider.notifier).clear();
     ref.read(liveLocationProvider.notifier).stopTracking();
 
-    // Single logout toast — no other provider should show one.
     Helpers.showToast('Logged out successfully');
   }
 }
