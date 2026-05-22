@@ -3,22 +3,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 
-class VerifyEmailScreen extends ConsumerWidget {
+class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String token;
 
   const VerifyEmailScreen({super.key, required this.token});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+}
+
+class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
+  bool _hasAttemptedVerification = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verifyEmail();
+    });
+  }
+
+  Future<void> _verifyEmail() async {
+    if (_hasAttemptedVerification || widget.token.isEmpty) return;
+    setState(() => _hasAttemptedVerification = true);
+
     final authNotifier = ref.read(authProvider.notifier);
+    await authNotifier.verifyEmail(widget.token);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final isLargeScreen = MediaQuery.of(context).size.width > 700;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!authState.isLoading) {
-        authNotifier.verifyEmail(token);
-      }
-    });
+    // Auto redirect after successful verification
+    if (authState.verified && !authState.isLoading && authState.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/signin');
+      });
+    }
 
     return Scaffold(
       body: Container(
@@ -42,15 +65,13 @@ class VerifyEmailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildWideLayout(BuildContext context, authState) {
+  Widget _buildWideLayout(BuildContext context, AuthState authState) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 800, maxHeight: 500),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6)),
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6))],
       ),
       child: Row(
         children: [
@@ -72,36 +93,21 @@ class VerifyEmailScreen extends ConsumerWidget {
                   children: [
                     Icon(Icons.mark_email_read, color: Colors.white, size: 80),
                     SizedBox(height: 24),
-                    Text(
-                      "Email Verification",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                      ),
-                    ),
+                    Text("Email Verification", style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, height: 1.3)),
                     SizedBox(height: 16),
-                    Text(
-                      "We're verifying your email address to ensure "
-                          "the security of your account and enable all features.",
-                      style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
-                    ),
+                    Text("We're verifying your email address...", style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.5)),
                   ],
                 ),
               ),
             ),
           ),
-          Expanded(
-            flex: 1,
-            child: _buildContent(context, authState, withPadding: true),
-          ),
+          Expanded(flex: 1, child: _buildContent(context, authState, withPadding: true)),
         ],
       ),
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context, authState) {
+  Widget _buildMobileLayout(BuildContext context, AuthState authState) {
     return SingleChildScrollView(
       child: Container(
         margin: const EdgeInsets.all(24),
@@ -109,12 +115,9 @@ class VerifyEmailScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6)),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 6))],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               authState.error != null ? Icons.error_outline : Icons.mark_email_read,
@@ -124,10 +127,7 @@ class VerifyEmailScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               authState.error != null ? "Verification Failed" : "Email Verification",
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 32),
             _buildContent(context, authState),
@@ -137,7 +137,7 @@ class VerifyEmailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, authState, {bool withPadding = false}) {
+  Widget _buildContent(BuildContext context, AuthState authState, {bool withPadding = false}) {
     final content = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -148,72 +148,37 @@ class VerifyEmailScreen extends ConsumerWidget {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 24),
-              Text(
-                "Verifying your email...",
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-              ),
+              Text("Verifying your email...", style: TextStyle(fontSize: 16, color: Colors.black54)),
             ],
           )
         else if (authState.error != null)
           Column(
             children: [
-              const Text(
-                'Verification failed',
-                style: TextStyle(fontSize: 18, color: Colors.red),
-              ),
+              const Text('Verification failed', style: TextStyle(fontSize: 18, color: Colors.red)),
               const SizedBox(height: 8),
-              Text(
-                authState.error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(authState.error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => context.go('/signin'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
                 child: const Text('Back to Sign In'),
               ),
             ],
           )
         else
-          Column(
+          const Column(
             children: [
-              const Text(
-                'Email Verified Successfully!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Your email has been verified. You can now access all features of your account.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () => context.go('/signin'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Go to Sign In'),
-              ),
+              Icon(Icons.check_circle, color: Colors.green, size: 60),
+              SizedBox(height: 16),
+              Text('Email Verified Successfully!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+              SizedBox(height: 8),
+              Text('Redirecting to sign in...', style: TextStyle(color: Colors.black54)),
             ],
           ),
       ],
     );
 
     return withPadding
-        ? Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      child: Center(child: content),
-    )
+        ? Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: content)
         : content;
   }
 }

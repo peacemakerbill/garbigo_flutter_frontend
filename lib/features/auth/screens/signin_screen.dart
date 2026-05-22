@@ -25,6 +25,16 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
     super.dispose();
   }
 
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      final authNotifier = ref.read(authProvider.notifier);
+      authNotifier.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -167,6 +177,7 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
             decoration: InputDecoration(
               labelText: 'Email',
               hintText: 'Enter your email address',
@@ -183,6 +194,8 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitForm(), // ← Enter key triggers login
             decoration: InputDecoration(
               labelText: 'Password',
               hintText: 'Enter your password',
@@ -199,43 +212,59 @@ class _SigninScreenState extends ConsumerState<SigninScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+
+          // Forgot Password & Resend Verification
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () => context.go('/forgot'),
+                child: const Text(AppStrings.forgotPassword),
+              ),
+              TextButton(
+                onPressed: () => context.go('/resend-verification'),
+                child: const Text("Resend verification email"),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
           if (authState.isLoading)
             const CircularProgressIndicator()
           else
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    authNotifier.login(_emailController.text.trim(), _passwordController.text);
-                  }
-                },
+                onPressed: _submitForm,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text(AppStrings.signin, style: const TextStyle(fontSize: 18)),
+                child: const Text(AppStrings.signin, style: TextStyle(fontSize: 18)),
               ),
             ),
+
           if (authState.error != null)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Text(authState.error!, style: const TextStyle(color: Colors.red)),
             ),
+
+          const SizedBox(height: 16),
           TextButton(
             onPressed: () => context.go('/signup'),
             child: const Text('Don\'t have an account? Sign Up'),
           ),
-          TextButton(
-            onPressed: () => context.go('/forgot'),
-            child: Text(AppStrings.forgotPassword),
-          ),
+
           const SizedBox(height: 32),
           const Text('Or continue with'),
           const SizedBox(height: 16),
+
+          // Social Login Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

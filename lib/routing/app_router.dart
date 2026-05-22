@@ -7,6 +7,7 @@ import 'package:garbigo_frontend/features/auth/screens/signup_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/verify_email_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/forgot_password_screen.dart';
 import 'package:garbigo_frontend/features/auth/screens/reset_password_screen.dart';
+import 'package:garbigo_frontend/features/auth/screens/resend_verification_screen.dart';  // ← New import
 
 // Profile & Social
 import 'package:garbigo_frontend/features/profile/screens/profile_screen.dart';
@@ -47,6 +48,10 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: '/resend-verification',
+          builder: (context, state) => const ResendVerificationScreen(),
+        ),
+        GoRoute(
           path: '/forgot',
           builder: (context, state) => const ForgotPasswordScreen(),
         ),
@@ -74,6 +79,7 @@ class AppRouter {
           path: '/admin/dashboard',
           builder: (context, state) => const AdminDashboardScreen(),
         ),
+
         // ====================== DASHBOARDS ======================
         GoRoute(
           path: '/dashboard/client',

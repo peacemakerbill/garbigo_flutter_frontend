@@ -16,7 +16,7 @@ class AuthState {
   final String? token;
   final String? role;
   final bool verified;
-  final bool isRestoring; // true while reading token from storage on startup
+  final bool isRestoring;
 
   AuthState({
     this.isLoading = false,
@@ -55,9 +55,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ==================== SESSION RESTORE ====================
 
-  /// Reads the token from secure storage on startup.
-  /// Until this completes, [isRestoring] is true so the router
-  /// waits rather than redirecting to sign-in prematurely.
   Future<void> _restoreSession() async {
     final storage = ref.read(secureStorageProvider);
     final token = await storage.read(key: 'auth_token');
@@ -69,8 +66,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         role: role,
         isRestoring: false,
       );
-      // Re-fetch the full user profile in the background.
-      // The router will re-evaluate once userProvider emits.
       ref.read(userProvider.notifier).fetchCurrentUser();
     } else {
       state = state.copyWith(isRestoring: false);
@@ -208,16 +203,65 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // ==================== EMAIL VERIFICATION ====================
+
   Future<void> verifyEmail(String token) async {
+    if (token.isEmpty) {
+      state = state.copyWith(isLoading: false, error: 'Invalid verification token');
+      return;
+    }
+
     state = state.copyWith(isLoading: true, error: null);
     try {
       final dio = Dio(BaseOptions(baseUrl: AppConfig.authBase));
       await dio.get('/verify?token=$token');
-      state = state.copyWith(isLoading: false, verified: true);
+
+      state = state.copyWith(
+        isLoading: false,
+        verified: true,
+      );
+
       Helpers.showToast('Email verified successfully');
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      Helpers.showToast('Email verification failed', isError: true);
+      String errorMsg = 'Verification failed';
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMsg = responseData['message'] ?? responseData['error'] ?? 'Verification failed';
+        } else if (responseData is String) {
+          errorMsg = responseData;
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMsg);
+      Helpers.showToast(errorMsg, isError: true);
+    }
+  }
+
+  Future<void> resendVerification(String email) async {
+    if (email.isEmpty) {
+      state = state.copyWith(isLoading: false, error: 'Email is required');
+      return;
+    }
+
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final dio = Dio(BaseOptions(baseUrl: AppConfig.authBase));
+      await dio.post('/resend-verification', data: {'email': email});
+
+      state = state.copyWith(isLoading: false);
+      Helpers.showToast('Verification email resent successfully');
+    } catch (e) {
+      String errorMsg = 'Failed to resend verification';
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map) {
+          errorMsg = responseData['message'] ?? responseData['error'] ?? 'Failed to resend';
+        } else if (responseData is String) {
+          errorMsg = responseData;
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMsg);
+      Helpers.showToast(errorMsg, isError: true);
     }
   }
 
