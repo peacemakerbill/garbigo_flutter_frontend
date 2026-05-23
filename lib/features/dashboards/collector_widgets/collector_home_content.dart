@@ -14,8 +14,9 @@ class CollectorHomeContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProvider).user;
     final locationState = ref.watch(liveLocationProvider);
-    final fullName = '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
+    final locationNotifier = ref.read(liveLocationProvider.notifier);
 
+    final fullName = '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 600;
 
@@ -99,11 +100,20 @@ class CollectorHomeContent extends ConsumerWidget {
             ),
 
             const SizedBox(height: 12),
-            _LiveStatusCard(locationState: locationState),
+            _LiveStatusCard(
+              locationState: locationState,
+              onToggle: (value) {
+                if (value) {
+                  locationNotifier.requestPermissionAndStart();
+                } else {
+                  locationNotifier.stopTracking();
+                }
+              },
+            ),
 
             const SizedBox(height: 32),
 
-            // Stats Overview
+            // Today's Overview
             const Text(
               'Today\'s Overview',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
@@ -134,6 +144,88 @@ class CollectorHomeContent extends ConsumerWidget {
                 );
               },
             ),
+
+            const SizedBox(height: 32),
+
+            // ==================== NEW SECTIONS ====================
+
+            // Upcoming Pickups
+            const Text(
+              'Upcoming Pickups',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 165,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: const [
+                  _UpcomingPickupCard(
+                    client: 'Alice Wanjiku',
+                    address: 'Westlands, Nairobi',
+                    time: '2:30 PM',
+                    waste: '18 kg Mixed',
+                  ),
+                  _UpcomingPickupCard(
+                    client: 'James Omondi',
+                    address: 'Kilimani, Nairobi',
+                    time: '4:00 PM',
+                    waste: '12 kg Plastic',
+                  ),
+                  _UpcomingPickupCard(
+                    client: 'Grace Muthoni',
+                    address: 'Lavington, Nairobi',
+                    time: 'Tomorrow 9:00 AM',
+                    waste: '25 kg Organic',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // This Week's Performance
+            const Text(
+              'This Week\'s Performance',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+
+            LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount = constraints.maxWidth > 900 ? 3 : 1;
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.85,
+                  children: const [
+                    _StatCard(
+                      title: 'Total Earnings',
+                      value: 'KSh 14,820',
+                      icon: Icons.currency_exchange,
+                      color: Color(0xFF10B981),
+                    ),
+                    _StatCard(
+                      title: 'Collections',
+                      value: '18',
+                      icon: Icons.local_shipping,
+                      color: Color(0xFF3B82F6),
+                    ),
+                    _StatCard(
+                      title: 'CO₂ Saved',
+                      value: '248 kg',
+                      icon: Icons.eco,
+                      color: Color(0xFF22C55E),
+                    ),
+                  ],
+                );
+              },
+            ),
+
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -190,10 +282,15 @@ class CollectorHomeContent extends ConsumerWidget {
   }
 }
 
+// ==================== LIVE STATUS CARD ====================
 class _LiveStatusCard extends StatelessWidget {
   final dynamic locationState;
+  final ValueChanged<bool> onToggle;
 
-  const _LiveStatusCard({required this.locationState});
+  const _LiveStatusCard({
+    required this.locationState,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +327,8 @@ class _LiveStatusCard extends StatelessWidget {
             ),
             Switch(
               value: isTracking,
-              onChanged: (_) {},
+              activeColor: Colors.green,
+              onChanged: onToggle,
             ),
           ],
         ),
@@ -239,6 +337,7 @@ class _LiveStatusCard extends StatelessWidget {
   }
 }
 
+// ==================== STAT CARD ====================
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -294,6 +393,80 @@ class _StatCard extends StatelessWidget {
               color: Colors.grey.shade600,
               fontWeight: FontWeight.w500,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== UPCOMING PICKUP CARD ====================
+class _UpcomingPickupCard extends StatelessWidget {
+  final String client;
+  final String address;
+  final String time;
+  final String waste;
+
+  const _UpcomingPickupCard({
+    required this.client,
+    required this.address,
+    required this.time,
+    required this.waste,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 240,
+      margin: const EdgeInsets.only(right: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.green,
+                child: Icon(Icons.person, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  client,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(address, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(time, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(waste, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+              const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.green),
+            ],
           ),
         ],
       ),
