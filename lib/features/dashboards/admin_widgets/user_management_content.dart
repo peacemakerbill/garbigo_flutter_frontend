@@ -14,6 +14,7 @@ class UserManagementContent extends ConsumerStatefulWidget {
 
 class _UserManagementContentState extends ConsumerState<UserManagementContent> {
   final _searchController = TextEditingController();
+  String _currentSearchQuery = '';
 
   @override
   void initState() {
@@ -27,6 +28,11 @@ class _UserManagementContentState extends ConsumerState<UserManagementContent> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _currentSearchQuery = value.trim();
+    ref.read(userProvider.notifier).getAllUsers(search: _currentSearchQuery);
   }
 
   @override
@@ -52,7 +58,7 @@ class _UserManagementContentState extends ConsumerState<UserManagementContent> {
                       icon: const Icon(Icons.clear_rounded),
                       onPressed: () {
                         _searchController.clear();
-                        userNotifier.getAllUsers();
+                        _onSearchChanged(''); // Reset search
                       },
                     )
                         : null,
@@ -64,7 +70,9 @@ class _UserManagementContentState extends ConsumerState<UserManagementContent> {
                     fillColor: Colors.grey.shade100,
                     contentPadding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  onSubmitted: (value) => userNotifier.getAllUsers(search: value),
+                  onChanged: _onSearchChanged,           //Real-time search on key release
+                  // onSubmitted is kept as fallback
+                  onSubmitted: (value) => _onSearchChanged(value),
                 ),
               ),
               const SizedBox(width: 16),
@@ -104,7 +112,7 @@ class _UserManagementContentState extends ConsumerState<UserManagementContent> {
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: () => userNotifier.getAllUsers(),
+                        onPressed: () => userNotifier.getAllUsers(search: _currentSearchQuery),
                         child: const Text('Retry'),
                       ),
                     ],
@@ -379,7 +387,7 @@ class UserDetailDialog extends StatelessWidget {
   }
 }
 
-// ==================== USER FORM DIALOG (Updated with all roles) ====================
+// ==================== USER FORM DIALOG ====================
 class UserFormDialog extends StatefulWidget {
   final UserModel? user;
   final Function(Map<String, dynamic>) onSave;
@@ -442,7 +450,7 @@ class _UserFormDialogState extends State<UserFormDialog> {
       'email': _emailController.text.trim(),
       'phoneNumber': _phoneController.text.trim(),
       'homeAddress': _addressController.text.trim(),
-      'role': _selectedRole.name, // Send as string to backend
+      'role': _selectedRole.name,
       if (widget.user == null && _passwordController.text.trim().isNotEmpty)
         'password': _passwordController.text.trim(),
     };
@@ -471,7 +479,6 @@ class _UserFormDialogState extends State<UserFormDialog> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Form Fields
                   TextFormField(
                     controller: _firstNameController,
                     decoration: const InputDecoration(labelText: 'First Name'),
@@ -508,7 +515,6 @@ class _UserFormDialogState extends State<UserFormDialog> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Role Dropdown with all roles
                   DropdownButtonFormField<Role>(
                     value: _selectedRole,
                     decoration: const InputDecoration(labelText: 'Role'),
