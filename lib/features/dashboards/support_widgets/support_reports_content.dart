@@ -1,30 +1,31 @@
 import 'package:flutter/material.dart';
 
-const _primary   = Color(0xFF1B5E35);
-const _amber     = Color(0xFF7A5000);
-const _green     = Color(0xFF2E6B3E);
-const _olive     = Color(0xFF556B2F);
-const _brown     = Color(0xFF8B4513);
-const _primaryBg = Color(0xFFE4F5EC);
-const _amberBg   = Color(0xFFFBF7E0);
-const _greenBg   = Color(0xFFEAF2E4);
+const _primary     = Color(0xFF15803D);   // Bright green (accents)
+const _darkGreen   = Color(0xFF15803D);   // Dark green (headers, buttons)
+const _amber       = Color(0xFF7A5000);
+const _green       = Color(0xFF15803D);
+const _olive       = Color(0xFF556B2F);
+const _brown       = Color(0xFF8B4513);
+const _primaryBg   = Color(0xFFE4F5EC);
+const _amberBg     = Color(0xFFFBF7E0);
+const _greenBg     = Color(0xFFEAF2E4);
 
 // ── Model ──────────────────────────────────────────────────────────────────
 
 class _Metric {
   const _Metric(this.title, this.value, this.trend, this.trendUp, this.icon, this.color, this.bg);
-  final String title, value, trend; final bool trendUp;
-  final IconData icon; final Color color, bg;
-}
-
-class _BarData {
-  const _BarData(this.day, this.resolved, this.opened);
-  final String day; final int resolved, opened;
+  final String title, value, trend;
+  final bool trendUp;
+  final IconData icon;
+  final Color color, bg;
 }
 
 class _AgentData {
   const _AgentData(this.name, this.initials, this.resolved, this.rating, this.online);
-  final String name, initials; final int resolved; final double rating; final bool online;
+  final String name, initials;
+  final int resolved;
+  final double rating;
+  final bool online;
 }
 
 const _metrics = [
@@ -32,11 +33,6 @@ const _metrics = [
   _Metric('Avg Resolution Time',    '4.8 hrs','↓ 1.2 hrs faster',    true,  Icons.timer_outlined,               _primary, _primaryBg),
   _Metric('Customer Satisfaction',  '4.7/5',  '↑ 0.3 points',        true,  Icons.star_outline_rounded,         _amber,   _amberBg),
   _Metric('Active Agents',          '12',     '3 on break',           false, Icons.support_agent_rounded,        _olive,   const Color(0xFFF0F5E4)),
-];
-
-const _bars = [
-  _BarData('Mon', 32, 28), _BarData('Tue', 28, 35), _BarData('Wed', 41, 30),
-  _BarData('Thu', 35, 25), _BarData('Fri', 29, 22), _BarData('Sat', 14, 10), _BarData('Sun', 8, 6),
 ];
 
 const _agents = [
@@ -48,6 +44,7 @@ const _agents = [
 
 final _abgs = [_primaryBg, _amberBg, _greenBg, const Color(0xFFF0F5E4)];
 final _afgs = [_primary, _amber, _green, _olive];
+
 Color _abg(String i) => _abgs[i.codeUnitAt(0) % 4];
 Color _afg(String i) => _afgs[i.codeUnitAt(0) % 4];
 
@@ -60,7 +57,6 @@ class SupportReportsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final maxBar = _bars.map((b) => b.resolved > b.opened ? b.resolved : b.opened).reduce((a, b) => a > b ? a : b);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -69,113 +65,120 @@ class SupportReportsContent extends StatelessWidget {
         // Header
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Support Reports', style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+            Text('Support Reports',
+                style: tt.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: _darkGreen,
+                )),
             const SizedBox(height: 4),
-            Text('Performance metrics and customer satisfaction', style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
+            Text('Performance metrics and customer satisfaction',
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
           ])),
           OutlinedButton.icon(
             onPressed: () {},
-            icon: Icon(Icons.download_rounded, size: 16, color: _primary),
-            label: Text('Export', style: TextStyle(color: _primary, fontSize: 13)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: _primary.withOpacity(0.4)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            icon: Icon(Icons.download_rounded, size: 16, color: _darkGreen),
+            label: Text('Export', style: TextStyle(color: _darkGreen, fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+                side: BorderSide(color: _darkGreen.withOpacity(0.4)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+            ),
           ),
         ]),
 
         const SizedBox(height: 20),
 
-        // Metric cards
-        LayoutBuilder(builder: (_, box) {
-          final cols = box.maxWidth < 400 ? 2 : 2;
-          return GridView.count(
-            crossAxisCount: cols, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.65,
-            children: [for (final m in _metrics) _MetricCard(m)],
-          );
-        }),
-
-        const SizedBox(height: 24),
-
-        // Weekly chart
-        Text('Weekly Ticket Activity', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text('Resolved vs opened tickets this week', style: tt.bodySmall?.copyWith(color: cs.onSurface.withOpacity(0.45))),
-        const SizedBox(height: 16),
-
-        // Legend
-        Row(children: [
-          _LegendDot(_green, 'Resolved'),
-          const SizedBox(width: 16),
-          _LegendDot(_amber, 'Opened'),
-        ]),
-        const SizedBox(height: 12),
-
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outline.withOpacity(0.12))),
-          child: Column(children: [
-            SizedBox(
-              height: 140,
-              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                for (final b in _bars) ...[
-                  Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    _Bar(b.resolved, maxBar, _green),
-                    const SizedBox(height: 3),
-                    _Bar(b.opened, maxBar, _amber.withOpacity(0.6)),
-                  ])),
-                  if (b != _bars.last) const SizedBox(width: 6),
-                ],
-              ]),
-            ),
-            const SizedBox(height: 8),
-            Row(children: [
-              for (final b in _bars) ...[
-                Expanded(child: Text(b.day, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.4), fontWeight: FontWeight.w500))),
-                if (b != _bars.last) const SizedBox(width: 6),
-              ],
-            ]),
-          ]),
+        // Metric cards - Improved responsiveness
+        LayoutBuilder(
+          builder: (context, constraints) {
+            int crossAxisCount = constraints.maxWidth > 1100 ? 4 :
+            constraints.maxWidth > 700 ? 2 : 1;
+            return GridView.count(
+              crossAxisCount: crossAxisCount,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.65,
+              children: [for (final m in _metrics) _MetricCard(m)],
+            );
+          },
         ),
 
         const SizedBox(height: 24),
 
         // Agent leaderboard
-        Text('Top Agents This Month', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+        Text('Top Agents This Month',
+            style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
 
         ListView.separated(
-          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: _agents.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final a = _agents[i];
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: cs.outline.withOpacity(0.12))),
+              decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: cs.outline.withOpacity(0.12))
+              ),
               child: Row(children: [
                 // Rank
-                SizedBox(width: 24, child: Text('${i + 1}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: i == 0 ? _amber : cs.onSurface.withOpacity(0.35)))),
+                SizedBox(
+                    width: 24,
+                    child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: i == 0 ? _amber : cs.onSurface.withOpacity(0.35)
+                        )
+                    )
+                ),
                 // Avatar
                 Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(color: _abg(a.initials), shape: BoxShape.circle),
-                  child: Center(child: Text(a.initials, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _afg(a.initials)))),
+                  child: Center(
+                      child: Text(
+                          a.initials,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _afg(a.initials)
+                          )
+                      )
+                  ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Text(a.name, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 7, height: 7,
-                      decoration: BoxDecoration(color: a.online ? _green : Colors.grey.shade400, shape: BoxShape.circle),
-                    ),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Text(a.name, style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                            color: a.online ? _green : Colors.grey.shade400,
+                            shape: BoxShape.circle
+                        ),
+                      ),
+                    ]),
+                    Text('${a.resolved} resolved',
+                        style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.45))),
                   ]),
-                  Text('${a.resolved} resolved', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.45))),
-                ])),
+                ),
                 Row(children: [
                   Icon(Icons.star_rounded, size: 14, color: _amber),
                   const SizedBox(width: 3),
-                  Text('${a.rating}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _amber)),
+                  Text('${a.rating}',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _amber)),
                 ]),
               ]),
             );
@@ -196,54 +199,57 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(color: m.bg, borderRadius: BorderRadius.circular(16)),
-    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+        color: m.bg,
+        borderRadius: BorderRadius.circular(16)
+    ),
+    padding: const EdgeInsets.all(16),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Container(
-          width: 32, height: 32,
-          decoration: BoxDecoration(color: m.color.withOpacity(0.15), borderRadius: BorderRadius.circular(9)),
-          child: Icon(m.icon, color: m.color, size: 17),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+              color: m.color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10)
+          ),
+          child: Icon(m.icon, color: m.color, size: 20),
         ),
         const Spacer(),
-        Icon(m.trendUp ? Icons.trending_up_rounded : Icons.trending_flat_rounded, size: 16, color: m.trendUp ? _green : _amber),
+        Icon(
+            m.trendUp ? Icons.trending_up_rounded : Icons.trending_flat_rounded,
+            size: 18,
+            color: m.trendUp ? _green : _amber
+        ),
       ]),
       const Spacer(),
-      Text(m.value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: m.color, height: 1.1)),
-      const SizedBox(height: 2),
-      Text(m.title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: m.color.withOpacity(0.7)), overflow: TextOverflow.ellipsis),
-      const SizedBox(height: 2),
-      Text(m.trend, style: TextStyle(fontSize: 10, color: m.trendUp ? _green : _amber, fontWeight: FontWeight.w500)),
+      Text(
+          m.value,
+          style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+              height: 1.1
+          )
+      ),
+      const SizedBox(height: 4),
+      Text(
+          m.title,
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: m.color.withOpacity(0.85)
+          )
+      ),
+      const SizedBox(height: 6),
+      Text(
+          m.trend,
+          style: TextStyle(
+              fontSize: 12,
+              color: m.trendUp ? _green : _amber,
+              fontWeight: FontWeight.w500
+          )
+      ),
     ]),
   );
-}
-
-// ── Bar widget ─────────────────────────────────────────────────────────────
-
-class _Bar extends StatelessWidget {
-  const _Bar(this.value, this.max, this.color);
-  final int value, max; final Color color;
-
-  @override
-  Widget build(BuildContext context) => FractionallySizedBox(
-    widthFactor: 1,
-    child: LayoutBuilder(builder: (_, box) => Container(
-      height: (value / max) * 100,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-    )),
-  );
-}
-
-// ── Legend dot ─────────────────────────────────────────────────────────────
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot(this.color, this.label);
-  final Color color; final String label;
-
-  @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
-    const SizedBox(width: 6),
-    Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55), fontWeight: FontWeight.w500)),
-  ]);
 }

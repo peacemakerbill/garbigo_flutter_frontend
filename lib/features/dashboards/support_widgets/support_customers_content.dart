@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-// ── Palette (garbage app earthy greens) ────────────────────────────────────
-
-const _primary   = Color(0xFF1B5E35);
-const _amber     = Color(0xFF7A5000);
-const _green     = Color(0xFF2E6B3E);
-const _primaryBg = Color(0xFFE4F5EC);
-const _amberBg   = Color(0xFFFBF7E0);
-const _greenBg   = Color(0xFFEAF2E4);
+const _primary     = Color(0xFF15803D);
+const _darkGreen   = Color(0xFF15803D);
+const _amber       = Color(0xFF7A5000);
+const _green       = Color(0xFF15803D);
+const _primaryBg   = Color(0xFFE4F5EC);
+const _amberBg     = Color(0xFFFBF7E0);
+const _greenBg     = Color(0xFFEAF2E4);
 
 // ── Model ──────────────────────────────────────────────────────────────────
 
@@ -15,8 +14,17 @@ enum CustomerStatus { active, inactive, pending }
 
 extension CustomerStatusX on CustomerStatus {
   String get label => ['Active', 'Inactive', 'Pending'][index];
-  Color get color => [_green, const Color(0xFF8B4513), _amber][index];
-  Color get bg    => [_greenBg, const Color(0xFFF5EDE4), _amberBg][index];
+  Color get color => [
+    _green,                    // Active
+    const Color(0xFF64748B),   // Inactive - slate gray
+    _amber,                    // Pending
+  ][index];
+
+  Color get bg => [
+    _greenBg,
+    const Color(0xFFF1F5F9),   // light slate
+    _amberBg,
+  ][index];
 }
 
 class Customer {
@@ -38,7 +46,8 @@ const _customers = [
 // ── Avatar helpers ─────────────────────────────────────────────────────────
 
 final _bgs = [const Color(0xFFE4F5EC), const Color(0xFFF5F0E4), const Color(0xFFEAF2E4), const Color(0xFFF5EDE4), const Color(0xFFDFF0E8), const Color(0xFFF0F5E4)];
-final _fgs = [const Color(0xFF1B5E35), const Color(0xFF7A5000), const Color(0xFF3A6B2A), const Color(0xFF8B4513), const Color(0xFF2E6B3E), const Color(0xFF556B2F)];
+final _fgs = [const Color(0xFF15803D), const Color(0xFF7A5000), const Color(0xFF166534), const Color(0xFF8B4513), const Color(0xFF14532D), const Color(0xFF556B2F)];
+
 Color _abg(String i) => _bgs[i.codeUnitAt(0) % 6];
 Color _afg(String i) => _fgs[i.codeUnitAt(0) % 6];
 
@@ -55,7 +64,8 @@ class _State extends State<SupportCustomersContent> {
 
   List<Customer> get _filtered => _customers.where((c) {
     if (_filter != null && c.status != _filter) return false;
-    if (_search.isNotEmpty && !c.name.toLowerCase().contains(_search.toLowerCase()) &&
+    if (_search.isNotEmpty &&
+        !c.name.toLowerCase().contains(_search.toLowerCase()) &&
         !c.email.toLowerCase().contains(_search.toLowerCase())) return false;
     return true;
   }).toList();
@@ -75,16 +85,22 @@ class _State extends State<SupportCustomersContent> {
         // Header
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Customers', style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+            Text('Customers',
+                style: tt.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: _darkGreen,
+                )),
             const SizedBox(height: 4),
-            Text('View and manage customer information', style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
+            Text('View and manage customer information',
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
           ])),
           FilledButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.person_add_rounded, size: 18),
             label: const Text('Add customer'),
             style: FilledButton.styleFrom(
-              backgroundColor: _primary,
+              backgroundColor: _darkGreen,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
@@ -96,8 +112,12 @@ class _State extends State<SupportCustomersContent> {
         LayoutBuilder(builder: (_, box) {
           final cols = box.maxWidth < 400 ? 2 : 3;
           return GridView.count(
-            crossAxisCount: cols, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.8,
+            crossAxisCount: cols,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.8,
             children: [
               _SummaryCard('Total',    _customers.length, Icons.group_rounded,          _primary, _primaryBg),
               _SummaryCard('Active',   _count(CustomerStatus.active),  Icons.check_circle_outline_rounded, _green, _greenBg),
@@ -161,7 +181,8 @@ class _State extends State<SupportCustomersContent> {
           ))
         else
           ListView.separated(
-            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: filtered.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _CustomerCard(filtered[i]),
@@ -244,8 +265,7 @@ class _CustomerCard extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              // Left accent bar
-              Container(width: 4, color: _primary),
+              Container(width: 4, color: _darkGreen),
 
               Expanded(child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -286,7 +306,7 @@ class _CustomerCard extends StatelessWidget {
                     TextButton(
                       onPressed: () {},
                       style: TextButton.styleFrom(
-                        foregroundColor: _primary,
+                        foregroundColor: _darkGreen,        // ← Updated
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),

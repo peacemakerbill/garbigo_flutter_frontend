@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-const _primary   = Color(0xFF1B5E35);
-const _amber     = Color(0xFF7A5000);
-const _green     = Color(0xFF2E6B3E);
+const _primary = Color(0xFF15803D);
+const _darkGreen = Color(0xFF15803D);
+const _amber = Color(0xFF7A5000);
+const _green = Color(0xFF15803D);
 const _primaryBg = Color(0xFFE4F5EC);
-const _amberBg   = Color(0xFFFBF7E0);
+const _amberBg = Color(0xFFFBF7E0);
 
 // ── Model ──────────────────────────────────────────────────────────────────
 
@@ -12,24 +13,47 @@ enum ArticleCategory { scheduling, billing, account, technical, recycling }
 
 extension ArticleCategoryX on ArticleCategory {
   String get label => ['Scheduling', 'Billing', 'Account', 'Technical', 'Recycling'][index];
-  Color get color  => [_green, _amber, const Color(0xFF556B2F), const Color(0xFF8B4513), _primary][index];
-  Color get bg     => [const Color(0xFFEAF2E4), _amberBg, const Color(0xFFF0F5E4), const Color(0xFFF5EDE4), _primaryBg][index];
-  IconData get icon => [Icons.calendar_month_rounded, Icons.receipt_long_rounded, Icons.manage_accounts_rounded, Icons.settings_rounded, Icons.recycling_rounded][index];
+
+  Color get color => [
+    _primary,                    // Scheduling
+    const Color(0xFF3B82F6),     // Billing - blue
+    const Color(0xFF8B5CF6),     // Account - purple
+    const Color(0xFFEF4444),     // Technical - red
+    _darkGreen,                  // Recycling
+  ][index];
+
+  Color get bg => [
+    const Color(0xFFEAF2E4),
+    const Color(0xFFEFF6FF),
+    const Color(0xFFF3E8FF),
+    const Color(0xFFFEF2F2),
+    _primaryBg,
+  ][index];
+
+  IconData get icon => [
+    Icons.calendar_month_rounded,
+    Icons.receipt_long_rounded,
+    Icons.manage_accounts_rounded,
+    Icons.settings_rounded,
+    Icons.recycling_rounded,
+  ][index];
 }
 
 class Article {
   const Article(this.title, this.views, this.updated, this.category, this.helpful);
-  final String title, updated; final int views, helpful; final ArticleCategory category;
+  final String title, updated;
+  final int views, helpful;
+  final ArticleCategory category;
 }
 
 const _articles = [
-  Article('How to schedule a bulk waste pickup',         1240, '2 days ago',  ArticleCategory.scheduling, 94),
-  Article('Understanding your monthly invoice',          870,  '5 days ago',  ArticleCategory.billing,    88),
-  Article('Reset your account password',                 654,  '1 week ago',  ArticleCategory.account,    91),
-  Article('What items are accepted for recycling?',      1103, '3 days ago',  ArticleCategory.recycling,  97),
-  Article('API integration guide for businesses',        420,  '2 weeks ago', ArticleCategory.technical,  82),
-  Article('How to track your waste collection route',    780,  '4 days ago',  ArticleCategory.scheduling, 90),
-  Article('Upgrade or downgrade your subscription plan', 510,  '1 week ago',  ArticleCategory.billing,    85),
+  Article('How to schedule a bulk waste pickup', 1240, '2 days ago', ArticleCategory.scheduling, 94),
+  Article('Understanding your monthly invoice', 870, '5 days ago', ArticleCategory.billing, 88),
+  Article('Reset your account password', 654, '1 week ago', ArticleCategory.account, 91),
+  Article('What items are accepted for recycling?', 1103, '3 days ago', ArticleCategory.recycling, 97),
+  Article('API integration guide for businesses', 420, '2 weeks ago', ArticleCategory.technical, 82),
+  Article('How to track your waste collection route', 780, '4 days ago', ArticleCategory.scheduling, 90),
+  Article('Upgrade or downgrade your subscription plan', 510, '1 week ago', ArticleCategory.billing, 85),
 ];
 
 // ── Main widget ────────────────────────────────────────────────────────────
@@ -58,19 +82,27 @@ class _State extends State<SupportKnowledgeContent> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
         // Header
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Knowledge Base', style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+            Text('Knowledge Base',
+                style: tt.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: _darkGreen,
+                )),
             const SizedBox(height: 4),
-            Text('Help articles and FAQs for customers & staff', style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
+            Text('Help articles and FAQs for customers & staff',
+                style: tt.bodyMedium?.copyWith(color: cs.onSurface.withOpacity(0.5))),
           ])),
           FilledButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('New article'),
-            style: FilledButton.styleFrom(backgroundColor: _primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            style: FilledButton.styleFrom(
+              backgroundColor: _darkGreen,           // ← Changed to darker green
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ]),
 
@@ -78,18 +110,21 @@ class _State extends State<SupportKnowledgeContent> {
 
         // Stats row
         Row(children: [
-          _StatPill(Icons.article_rounded,      '${_articles.length} articles', _primary, _primaryBg),
+          _StatPill(Icons.article_rounded, '${_articles.length} articles', _primary, _primaryBg),
           const SizedBox(width: 10),
-          _StatPill(Icons.visibility_rounded,   '${_articles.fold(0, (s, a) => s + a.views)} views', _green, const Color(0xFFEAF2E4)),
+          _StatPill(Icons.visibility_rounded, '${_articles.fold(0, (s, a) => s + a.views)} views', _green, const Color(0xFFEAF2E4)),
           const SizedBox(width: 10),
           _StatPill(Icons.thumb_up_alt_rounded, '${(_articles.map((a) => a.helpful).reduce((a, b) => a + b) / _articles.length).round()}% helpful', _amber, _amberBg),
         ]),
 
         const SizedBox(height: 20),
 
-        // Search
         Container(
-          decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: cs.outline.withOpacity(0.15))),
+          decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.outline.withOpacity(0.15))
+          ),
           child: TextField(
             onChanged: (v) => setState(() => _search = v),
             decoration: InputDecoration(
@@ -104,7 +139,6 @@ class _State extends State<SupportKnowledgeContent> {
 
         const SizedBox(height: 14),
 
-        // Category filters
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
@@ -124,7 +158,6 @@ class _State extends State<SupportKnowledgeContent> {
               style: tt.bodySmall?.copyWith(color: cs.onSurface.withOpacity(0.4), fontWeight: FontWeight.w600, letterSpacing: 0.4)),
         ),
 
-        // Articles list
         if (filtered.isEmpty)
           Center(child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 48),
@@ -136,7 +169,8 @@ class _State extends State<SupportKnowledgeContent> {
           ))
         else
           ListView.separated(
-            shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: filtered.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _ArticleCard(filtered[i]),
@@ -147,8 +181,6 @@ class _State extends State<SupportKnowledgeContent> {
     );
   }
 }
-
-// ── Stat pill ──────────────────────────────────────────────────────────────
 
 class _StatPill extends StatelessWidget {
   const _StatPill(this.icon, this.label, this.color, this.bg);
@@ -167,8 +199,6 @@ class _StatPill extends StatelessWidget {
     ),
   );
 }
-
-// ── Filter chip ────────────────────────────────────────────────────────────
 
 class _Chip extends StatelessWidget {
   const _Chip(this.label, this.selected, this.color, this.onTap);
@@ -189,8 +219,6 @@ class _Chip extends StatelessWidget {
     ));
   }
 }
-
-// ── Article card ───────────────────────────────────────────────────────────
 
 class _ArticleCard extends StatelessWidget {
   const _ArticleCard(this.a);
