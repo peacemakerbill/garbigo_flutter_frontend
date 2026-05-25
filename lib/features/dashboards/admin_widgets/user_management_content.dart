@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/features/auth/models/user_model.dart';
+import 'package:garbigo_frontend/features/auth/models/role.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -378,7 +379,7 @@ class UserDetailDialog extends StatelessWidget {
   }
 }
 
-// ==================== USER FORM DIALOG ====================
+// ==================== USER FORM DIALOG (Updated with all roles) ====================
 class UserFormDialog extends StatefulWidget {
   final UserModel? user;
   final Function(Map<String, dynamic>) onSave;
@@ -399,10 +400,8 @@ class _UserFormDialogState extends State<UserFormDialog> {
   final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  String _selectedRole = 'CLIENT';
+  Role _selectedRole = Role.CLIENT;
   bool _isLoading = false;
-
-  final List<String> _roles = ['CLIENT', 'COLLECTOR', 'ADMIN'];
 
   @override
   void initState() {
@@ -415,7 +414,7 @@ class _UserFormDialogState extends State<UserFormDialog> {
       _emailController.text = u.email;
       _phoneController.text = u.phoneNumber;
       _addressController.text = u.homeAddress;
-      _selectedRole = u.role;
+      _selectedRole = Role.fromString(u.role);
     }
   }
 
@@ -443,7 +442,7 @@ class _UserFormDialogState extends State<UserFormDialog> {
       'email': _emailController.text.trim(),
       'phoneNumber': _phoneController.text.trim(),
       'homeAddress': _addressController.text.trim(),
-      'role': _selectedRole,
+      'role': _selectedRole.name, // Send as string to backend
       if (widget.user == null && _passwordController.text.trim().isNotEmpty)
         'password': _passwordController.text.trim(),
     };
@@ -472,25 +471,58 @@ class _UserFormDialogState extends State<UserFormDialog> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Form Fields with better spacing and styling
-                  TextFormField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'First Name'), validator: (v) => v?.trim().isEmpty == true ? 'Required' : null),
+                  // Form Fields
+                  TextFormField(
+                    controller: _firstNameController,
+                    decoration: const InputDecoration(labelText: 'First Name'),
+                    validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+                  ),
                   const SizedBox(height: 14),
-                  TextFormField(controller: _middleNameController, decoration: const InputDecoration(labelText: 'Middle Name')),
+                  TextFormField(
+                    controller: _middleNameController,
+                    decoration: const InputDecoration(labelText: 'Middle Name'),
+                  ),
                   const SizedBox(height: 14),
-                  TextFormField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Last Name'), validator: (v) => v?.trim().isEmpty == true ? 'Required' : null),
+                  TextFormField(
+                    controller: _lastNameController,
+                    decoration: const InputDecoration(labelText: 'Last Name'),
+                    validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+                  ),
                   const SizedBox(height: 14),
-                  TextFormField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email Address'), keyboardType: TextInputType.emailAddress, validator: (v) => v?.trim().isEmpty == true ? 'Required' : null),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(labelText: 'Email Address'),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
+                  ),
                   const SizedBox(height: 14),
-                  TextFormField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Phone Number')),
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(labelText: 'Phone Number'),
+                  ),
                   const SizedBox(height: 14),
-                  TextFormField(controller: _addressController, decoration: const InputDecoration(labelText: 'Home Address'), maxLines: 2),
+                  TextFormField(
+                    controller: _addressController,
+                    decoration: const InputDecoration(labelText: 'Home Address'),
+                    maxLines: 2,
+                  ),
                   const SizedBox(height: 14),
 
-                  DropdownButtonFormField<String>(
+                  // Role Dropdown with all roles
+                  DropdownButtonFormField<Role>(
                     value: _selectedRole,
                     decoration: const InputDecoration(labelText: 'Role'),
-                    items: _roles.map((role) => DropdownMenuItem(value: role, child: Text(role))).toList(),
-                    onChanged: (val) => setState(() => _selectedRole = val!),
+                    items: Role.allRoles
+                        .map((role) => DropdownMenuItem(
+                      value: role,
+                      child: Text(role.displayName),
+                    ))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedRole = val);
+                      }
+                    },
                   ),
 
                   if (widget.user == null) ...[
@@ -517,7 +549,10 @@ class _UserFormDialogState extends State<UserFormDialog> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _save,
                           child: _isLoading
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
                               : Text(widget.user == null ? 'Create User' : 'Update User'),
                         ),
                       ),
