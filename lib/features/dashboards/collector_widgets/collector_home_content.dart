@@ -4,8 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 
-import 'package:garbigo_frontend/features/location/providers/live_location_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
+import 'package:garbigo_frontend/features/location/providers/live_location_provider.dart';
 
 class CollectorHomeContent extends ConsumerWidget {
   const CollectorHomeContent({super.key});
@@ -14,37 +14,46 @@ class CollectorHomeContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProvider).user;
     final locationState = ref.watch(liveLocationProvider);
-    final locationNotifier = ref.read(liveLocationProvider.notifier);
+    final notifier = ref.read(liveLocationProvider.notifier);
 
-    final fullName = '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
     final width = MediaQuery.of(context).size.width;
+    final isTiny = width < 360;
     final isMobile = width < 600;
+    final isTablet = width >= 600 && width < 1000;
+
+    final fullName =
+    '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim();
+
+    double padding = isTiny
+        ? 10
+        : isMobile
+        ? 14
+        : isTablet
+        ? 20
+        : 28;
 
     return RefreshIndicator(
       onRefresh: () async => ref.refresh(liveLocationProvider),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 16 : 24,
-          vertical: isMobile ? 16 : 24,
-        ),
+        padding: EdgeInsets.all(padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Hero Section
+            // HERO
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(isMobile ? 24 : 32),
+              padding: EdgeInsets.all(isMobile ? 18 : 28),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF22C55E), Color(0xFF15803D)],
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    color: Colors.green.withOpacity(0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -52,12 +61,17 @@ class CollectorHomeContent extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Hello, ${fullName.isNotEmpty ? fullName : "Collector"} 👋',
+                    'Hello, ${fullName.isEmpty ? "Collector" : fullName} 👋',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: isMobile ? 26 : 34,
-                      fontWeight: FontWeight.w800,
                       color: Colors.white,
-                      letterSpacing: -1,
+                      fontWeight: FontWeight.w800,
+                      fontSize: isTiny
+                          ? 20
+                          : isMobile
+                          ? 24
+                          : 34,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -65,193 +79,310 @@ class CollectorHomeContent extends ConsumerWidget {
                     'Ready to make the city cleaner?',
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: isMobile ? 15 : 17,
+                      fontSize: isTiny ? 12 : 15,
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 28),
+            SizedBox(height: isMobile ? 22 : 30),
 
-            // Live Location Map
-            const Text(
-              'Live Location',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
+            _sectionTitle('Live Location', isMobile),
+
             const SizedBox(height: 12),
 
+            // MAP
             Container(
-              height: isMobile ? 260 : 340,
+              height: isTiny
+                  ? 220
+                  : isMobile
+                  ? 270
+                  : 360,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.06),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(22),
                 child: _buildMap(locationState),
               ),
             ),
 
             const SizedBox(height: 12),
-            _LiveStatusCard(
-              locationState: locationState,
-              onToggle: (value) {
-                if (value) {
-                  locationNotifier.requestPermissionAndStart();
-                } else {
-                  locationNotifier.stopTracking();
-                }
-              },
-            ),
 
-            const SizedBox(height: 32),
-
-            // Today's Overview
-            const Text(
-              'Today\'s Overview',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-
-            LayoutBuilder(
-              builder: (context, constraints) {
-                int crossAxisCount = constraints.maxWidth > 1100
-                    ? 4
-                    : constraints.maxWidth > 700
-                    ? 2
-                    : 1;
-
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: crossAxisCount == 1 ? 2.8 : 1.7,
-                  children: const [
-                    _StatCard(title: 'Active Jobs', value: '3', icon: Icons.work, color: Color(0xFF22C55E)),
-                    _StatCard(title: 'Waste Collected', value: '87 kg', icon: Icons.recycling, color: Color(0xFF3B82F6)),
-                    _StatCard(title: 'Earnings Today', value: 'KSh 2,450', icon: Icons.currency_exchange, color: Color(0xFF8B5CF6)),
-                    _StatCard(title: 'Rating', value: '4.9 ★', icon: Icons.star, color: Color(0xFFF59E0B)),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 32),
-
-            // ==================== NEW SECTIONS ====================
-
-            // Upcoming Pickups
-            const Text(
-              'Upcoming Pickups',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 165,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: const [
-                  _UpcomingPickupCard(
-                    client: 'Alice Wanjiku',
-                    address: 'Westlands, Nairobi',
-                    time: '2:30 PM',
-                    waste: '18 kg Mixed',
+            // LIVE STATUS
+            Container(
+              padding: EdgeInsets.all(isTiny ? 12 : 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: isTiny
+                  ? Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        locationState.isTracking ?? false
+                            ? Icons.location_on
+                            : Icons.location_off,
+                        color: locationState.isTracking ?? false
+                            ? Colors.green
+                            : Colors.orange,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          locationState.isTracking ?? false
+                              ? 'Live Tracking Active'
+                              : 'Location Tracking Off',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  _UpcomingPickupCard(
-                    client: 'James Omondi',
-                    address: 'Kilimani, Nairobi',
-                    time: '4:00 PM',
-                    waste: '12 kg Plastic',
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          locationState.currentPosition != null
+                              ? 'Accuracy: ±${locationState.currentPosition!.accuracy.toStringAsFixed(0)}m'
+                              : 'Location unavailable',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      Switch(
+                        value:
+                        locationState.isTracking ?? false,
+                        activeColor: Colors.green,
+                        onChanged: (v) {
+                          if (v) {
+                            notifier
+                                .requestPermissionAndStart();
+                          } else {
+                            notifier.stopTracking();
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                  _UpcomingPickupCard(
-                    client: 'Grace Muthoni',
-                    address: 'Lavington, Nairobi',
-                    time: 'Tomorrow 9:00 AM',
-                    waste: '25 kg Organic',
+                ],
+              )
+                  : Row(
+                children: [
+                  Icon(
+                    locationState.isTracking ?? false
+                        ? Icons.location_on
+                        : Icons.location_off,
+                    color: locationState.isTracking ?? false
+                        ? Colors.green
+                        : Colors.orange,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          locationState.isTracking ?? false
+                              ? 'Live Tracking Active'
+                              : 'Location Tracking Off',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (locationState.currentPosition !=
+                            null)
+                          Text(
+                            'Accuracy: ±${locationState.currentPosition!.accuracy.toStringAsFixed(0)}m',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value:
+                    locationState.isTracking ?? false,
+                    activeColor: Colors.green,
+                    onChanged: (v) {
+                      if (v) {
+                        notifier
+                            .requestPermissionAndStart();
+                      } else {
+                        notifier.stopTracking();
+                      }
+                    },
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 24 : 32),
 
-            // This Week's Performance
-            const Text(
-              'This Week\'s Performance',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-            ),
+            _sectionTitle('Today\'s Overview', isMobile),
+
             const SizedBox(height: 16),
 
-            LayoutBuilder(
-              builder: (context, constraints) {
-                int crossAxisCount = constraints.maxWidth > 900 ? 3 : 1;
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.85,
-                  children: const [
-                    _StatCard(
-                      title: 'Total Earnings',
-                      value: 'KSh 14,820',
-                      icon: Icons.currency_exchange,
-                      color: Color(0xFF10B981),
-                    ),
-                    _StatCard(
-                      title: 'Collections',
-                      value: '18',
-                      icon: Icons.local_shipping,
-                      color: Color(0xFF3B82F6),
-                    ),
-                    _StatCard(
-                      title: 'CO₂ Saved',
-                      value: '248 kg',
-                      icon: Icons.eco,
-                      color: Color(0xFF22C55E),
-                    ),
-                  ],
-                );
-              },
+            _responsiveGrid(
+              width,
+              [
+                _statCard(
+                  title: 'Active Jobs',
+                  value: '3',
+                  icon: Icons.work,
+                  color: const Color(0xFF22C55E),
+                  tiny: isTiny,
+                ),
+                _statCard(
+                  title: 'Waste Collected',
+                  value: '87 kg',
+                  icon: Icons.recycling,
+                  color: const Color(0xFF3B82F6),
+                  tiny: isTiny,
+                ),
+                _statCard(
+                  title: 'Earnings Today',
+                  value: 'KSh 2,450',
+                  icon: Icons.currency_exchange,
+                  color: const Color(0xFF8B5CF6),
+                  tiny: isTiny,
+                ),
+                _statCard(
+                  title: 'Rating',
+                  value: '4.9 ★',
+                  icon: Icons.star,
+                  color: const Color(0xFFF59E0B),
+                  tiny: isTiny,
+                ),
+              ],
+              maxColumns: 4,
             ),
 
-            const SizedBox(height: 40),
+            SizedBox(height: isMobile ? 24 : 32),
+
+            _sectionTitle('Upcoming Pickups', isMobile),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              height: isMobile ? 170 : 185,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _pickupCard(
+                    width:
+                    isTiny ? width * 0.82 : width < 600 ? 250 : 270,
+                    client: 'Alice Wanjiku',
+                    address: 'Westlands, Nairobi',
+                    time: '2:30 PM',
+                    waste: '18 kg Mixed',
+                    tiny: isTiny,
+                  ),
+                  _pickupCard(
+                    width:
+                    isTiny ? width * 0.82 : width < 600 ? 250 : 270,
+                    client: 'James Omondi',
+                    address: 'Kilimani, Nairobi',
+                    time: '4:00 PM',
+                    waste: '12 kg Plastic',
+                    tiny: isTiny,
+                  ),
+                  _pickupCard(
+                    width:
+                    isTiny ? width * 0.82 : width < 600 ? 250 : 270,
+                    client: 'Grace Muthoni',
+                    address: 'Lavington, Nairobi',
+                    time: 'Tomorrow 9:00 AM',
+                    waste: '25 kg Organic',
+                    tiny: isTiny,
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: isMobile ? 24 : 32),
+
+            _sectionTitle('This Week\'s Performance', isMobile),
+
+            const SizedBox(height: 16),
+
+            _responsiveGrid(
+              width,
+              [
+                _statCard(
+                  title: 'Total Earnings',
+                  value: 'KSh 14,820',
+                  icon: Icons.currency_exchange,
+                  color: const Color(0xFF10B981),
+                  tiny: isTiny,
+                ),
+                _statCard(
+                  title: 'Collections',
+                  value: '18',
+                  icon: Icons.local_shipping,
+                  color: const Color(0xFF3B82F6),
+                  tiny: isTiny,
+                ),
+                _statCard(
+                  title: 'CO₂ Saved',
+                  value: '248 kg',
+                  icon: Icons.eco,
+                  color: const Color(0xFF22C55E),
+                  tiny: isTiny,
+                ),
+              ],
+              maxColumns: 3,
+            ),
+
+            SizedBox(height: isMobile ? 28 : 40),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMap(dynamic locationState) {
-    if (locationState.currentPosition == null) {
+  Widget _buildMap(dynamic state) {
+    if (state.currentPosition == null) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(),
-            SizedBox(height: 16),
+            SizedBox(height: 14),
             Text('Getting your location...'),
           ],
         ),
       );
     }
 
+    final lat = state.currentPosition!.latitude;
+    final lng = state.currentPosition!.longitude;
+
     return FlutterMap(
       options: MapOptions(
-        initialCenter: LatLng(
-          locationState.currentPosition!.latitude,
-          locationState.currentPosition!.longitude,
-        ),
+        initialCenter: LatLng(lat, lng),
         initialZoom: 16,
       ),
       children: [
@@ -263,16 +394,13 @@ class CollectorHomeContent extends ConsumerWidget {
         MarkerLayer(
           markers: [
             Marker(
-              point: LatLng(
-                locationState.currentPosition!.latitude,
-                locationState.currentPosition!.longitude,
-              ),
-              width: 60,
-              height: 60,
+              point: LatLng(lat, lng),
+              width: 48,
+              height: 48,
               child: const Icon(
                 Icons.location_pin,
                 color: Colors.red,
-                size: 60,
+                size: 48,
               ),
             ),
           ],
@@ -280,90 +408,62 @@ class CollectorHomeContent extends ConsumerWidget {
       ],
     );
   }
-}
 
-// ==================== LIVE STATUS CARD ====================
-class _LiveStatusCard extends StatelessWidget {
-  final dynamic locationState;
-  final ValueChanged<bool> onToggle;
-
-  const _LiveStatusCard({
-    required this.locationState,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isTracking = locationState.isTracking ?? false;
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              isTracking ? Icons.location_on : Icons.location_off,
-              color: isTracking ? Colors.green : Colors.orange,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isTracking ? 'Live Tracking Active' : 'Location Tracking Off',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  if (locationState.currentPosition != null)
-                    Text(
-                      'Accuracy: ±${locationState.currentPosition!.accuracy.toStringAsFixed(0)}m',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
-                ],
-              ),
-            ),
-            Switch(
-              value: isTracking,
-              activeColor: Colors.green,
-              onChanged: onToggle,
-            ),
-          ],
-        ),
+  Widget _sectionTitle(String title, bool mobile) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: mobile ? 20 : 24,
+        fontWeight: FontWeight.w700,
       ),
     );
   }
-}
 
-// ==================== STAT CARD ====================
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
+  Widget _responsiveGrid(
+      double width,
+      List<Widget> children, {
+        required int maxColumns,
+      }) {
+    int columns = 1;
 
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
+    if (width >= 1200) {
+      columns = maxColumns;
+    } else if (width >= 700) {
+      columns = 2;
+    }
 
-  @override
-  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      itemCount: children.length,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: columns == 1 ? 2.1 : 1.5,
+      ),
+      itemBuilder: (_, i) => children[i],
+    );
+  }
+
+  Widget _statCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required bool tiny,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(tiny ? 14 : 18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -371,26 +471,36 @@ class _StatCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(tiny ? 8 : 10),
             decoration: BoxDecoration(
               color: color.withOpacity(0.12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
+            child: Icon(
+              icon,
+              color: color,
+              size: tiny ? 22 : 28,
             ),
           ),
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: tiny ? 22 : 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.grey.shade600,
+              fontSize: tiny ? 12 : 14,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -398,28 +508,19 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
-}
 
-// ==================== UPCOMING PICKUP CARD ====================
-class _UpcomingPickupCard extends StatelessWidget {
-  final String client;
-  final String address;
-  final String time;
-  final String waste;
-
-  const _UpcomingPickupCard({
-    required this.client,
-    required this.address,
-    required this.time,
-    required this.waste,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _pickupCard({
+    required double width,
+    required String client,
+    required String address,
+    required String time,
+    required String waste,
+    required bool tiny,
+  }) {
     return Container(
-      width: 240,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
+      width: width,
+      margin: const EdgeInsets.only(right: 14),
+      padding: EdgeInsets.all(tiny ? 14 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -436,36 +537,70 @@ class _UpcomingPickupCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                radius: 20,
+              CircleAvatar(
+                radius: tiny ? 18 : 20,
                 backgroundColor: Colors.green,
-                child: Icon(Icons.person, color: Colors.white, size: 20),
+                child: Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: tiny ? 18 : 20,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   client,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: tiny ? 13 : 15,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(address, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+          SizedBox(height: tiny ? 10 : 14),
+          Text(
+            address,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: tiny ? 12 : 13,
+            ),
+          ),
           const Spacer(),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(time, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(waste, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      time,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: tiny ? 12 : 14,
+                      ),
+                    ),
+                    Text(
+                      waste,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: tiny ? 11 : 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.green),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: tiny ? 14 : 16,
+                color: Colors.green,
+              ),
             ],
           ),
         ],
