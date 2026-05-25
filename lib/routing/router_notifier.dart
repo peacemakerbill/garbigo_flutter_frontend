@@ -15,7 +15,6 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authProvider);
     final userState = _ref.read(userProvider);
 
-    // IMPORTANT: Wait until session restoration is complete
     if (authState.isRestoring) {
       return null;
     }
@@ -23,7 +22,8 @@ class RouterNotifier extends ChangeNotifier {
     final isLoggedIn = authState.token != null && authState.token!.isNotEmpty;
     final isVerified = authState.verified;
 
-    // All allowed auth-related paths
+    final userRole = (userState.user?.role ?? authState.role ?? 'CLIENT').toUpperCase();
+
     final isAuthPath = [
       '/signin',
       '/signup',
@@ -35,48 +35,69 @@ class RouterNotifier extends ChangeNotifier {
       '/auth/reset-password/confirm',
     ].contains(matchedLocation);
 
-    // 1. Not logged in → force to signin (except auth pages)
     if (!isLoggedIn) {
       return isAuthPath ? null : '/signin';
     }
 
-    // 2. Logged in BUT NOT VERIFIED → block access to dashboard
     if (isLoggedIn && !isVerified) {
       return isAuthPath ? null : '/signin';
     }
 
-    // 3. Protected routes
-    const protectedRoutes = [
-      '/profile',
-      '/dashboard/client',
-      '/dashboard/collector',
-      '/dashboard/operations',
-      '/dashboard/finance',
-      '/dashboard/support',
-      '/admin/dashboard',
-    ];
+    // Role-based dashboard protection
+    final Map<String, List<String>> roleAllowedRoutes = {
+      'ADMIN': ['/admin/dashboard', '/profile'],
+      'SUPPORT': ['/dashboard/support', '/profile'],
+      'OPERATIONS': ['/dashboard/operations', '/profile'],
+      'FINANCE': ['/dashboard/finance', '/profile'],
+      'COLLECTOR': ['/dashboard/collector', '/profile'],
+      'CLIENT': ['/dashboard/client', '/profile'],
+    };
 
-    final isProtectedRoute = protectedRoutes.any((route) =>
-    matchedLocation == route || matchedLocation.startsWith('$route/'));
+    // Check if accessing a dashboard route
+    if (matchedLocation.startsWith('/dashboard/') || matchedLocation == '/admin/dashboard') {
+      final allowedRoutes = roleAllowedRoutes[userRole] ?? roleAllowedRoutes['CLIENT']!;
 
-    if (isProtectedRoute) {
-      return null; // Allow access
+      bool isAllowed = allowedRoutes.any((route) =>
+      matchedLocation == route || matchedLocation.startsWith('$route/'));
+
+      if (!isAllowed) {
+        // Redirect to user's correct dashboard
+        switch (userRole) {
+          case 'ADMIN':
+            return '/admin/dashboard';
+          case 'SUPPORT':
+            return '/dashboard/support';
+          case 'OPERATIONS':
+            return '/dashboard/operations';
+          case 'FINANCE':
+            return '/dashboard/finance';
+          case 'COLLECTOR':
+            return '/dashboard/collector';
+          case 'CLIENT':
+          default:
+            return '/dashboard/client';
+        }
+      }
     }
 
-    // 4. Default dashboard redirect for verified users
+    // Allow profile for all logged-in users
+    if (matchedLocation == '/profile' || matchedLocation.startsWith('/profile/')) {
+      return null;
+    }
+
+    // Default redirect for root and auth paths
     if (isAuthPath || matchedLocation == '/' || matchedLocation.isEmpty) {
-      final role = userState.user?.role ?? authState.role ?? 'CLIENT';
-      switch (role) {
+      switch (userRole) {
         case 'ADMIN':
           return '/admin/dashboard';
-        case 'COLLECTOR':
-          return '/dashboard/collector';
+        case 'SUPPORT':
+          return '/dashboard/support';
         case 'OPERATIONS':
           return '/dashboard/operations';
         case 'FINANCE':
           return '/dashboard/finance';
-        case 'SUPPORT':
-          return '/dashboard/support';
+        case 'COLLECTOR':
+          return '/dashboard/collector';
         case 'CLIENT':
         default:
           return '/dashboard/client';

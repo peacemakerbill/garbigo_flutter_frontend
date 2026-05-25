@@ -30,7 +30,7 @@ class AppRouter {
       refreshListenable: notifier,
       redirect: (context, state) => notifier.redirect(state.matchedLocation),
       routes: [
-        // ====================== AUTH ROUTES ======================
+        // Auth Routes
         GoRoute(
           path: '/signin',
           builder: (context, state) => const SigninScreen(),
@@ -66,7 +66,7 @@ class AppRouter {
           builder: (context, state) => const ForgotPasswordScreen(),
         ),
 
-        // Password Reset - Handle both current and backend email link
+        // Password Reset
         GoRoute(
           path: '/reset',
           builder: (context, state) => ResetPasswordScreen(
@@ -80,7 +80,13 @@ class AppRouter {
           ),
         ),
 
-        // ====================== OTHER ROUTES ======================
+        // Root route
+        GoRoute(
+          path: '/',
+          redirect: (context, state) => null,
+        ),
+
+        // Profile Routes
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
@@ -91,6 +97,8 @@ class AppRouter {
             userId: state.pathParameters['id']!,
           ),
         ),
+
+        // Dashboards
         GoRoute(
           path: '/admin/dashboard',
           builder: (context, state) => const AdminDashboardScreen(),

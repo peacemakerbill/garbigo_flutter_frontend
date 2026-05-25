@@ -146,6 +146,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _isEditing = false);
   }
 
+  // Updated: Proper navigation based on user role
+  void _navigateToDashboard() {
+    final role = ref.read(authProvider).role?.toUpperCase() ?? 'CLIENT';
+
+    switch (role) {
+      case 'ADMIN':
+        context.go('/admin/dashboard');
+        break;
+      case 'COLLECTOR':
+        context.go('/dashboard/collector');
+        break;
+      case 'OPERATIONS':
+        context.go('/dashboard/operations');
+        break;
+      case 'FINANCE':
+        context.go('/dashboard/finance');
+        break;
+      case 'SUPPORT':
+        context.go('/dashboard/support');
+        break;
+      case 'CLIENT':
+      default:
+        context.go('/dashboard/client');
+    }
+  }
+
   @override
   void dispose() {
     _firstNameCtrl.dispose();
@@ -173,19 +199,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         title: const Text('My Profile'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            final role = ref.read(authProvider).role ?? 'CLIENT';
-            switch (role) {
-              case 'ADMIN':
-                context.go('/admin/dashboard');
-                break;
-              case 'COLLECTOR':
-                context.go('/dashboard/collector');
-                break;
-              default:
-                context.go('/dashboard/client');
-            }
-          },
+          onPressed: _navigateToDashboard,
         ),
         actions: [
           if (_isEditing)
