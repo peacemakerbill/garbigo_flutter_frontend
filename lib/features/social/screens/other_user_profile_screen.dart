@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
+import 'package:garbigo_frontend/features/profile/providers/profile_view_provider.dart';
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
 import 'package:garbigo_frontend/features/social/models/review_update_request.dart';
@@ -29,7 +30,11 @@ class _OtherUserProfileScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Refresh all social data
       ref.read(_provider.notifier).refreshAll(widget.userId);
+
+      // Record profile view (important for analytics)
+      ref.read(profileViewProvider.notifier).recordProfileView(widget.userId);
     });
   }
 
@@ -63,7 +68,7 @@ class _OtherUserProfileScreenState
               constraints: const BoxConstraints(maxWidth: 720),
               child: Column(
                 children: [
-                  // ====================== PERFECT CIRCLE PROFILE PICTURE ======================
+                  // Profile Picture
                   Card(
                     elevation: 6,
                     shape: const CircleBorder(),

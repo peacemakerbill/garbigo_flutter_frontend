@@ -1,14 +1,18 @@
+// features/profile/screens/profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+
 import 'package:garbigo_frontend/features/auth/providers/auth_provider.dart';
 import 'package:garbigo_frontend/features/auth/providers/user_provider.dart';
 import 'package:garbigo_frontend/features/profile/providers/profile_provider.dart';
+import 'package:garbigo_frontend/features/profile/providers/profile_view_provider.dart';
 import 'package:garbigo_frontend/features/social/providers/social_provider.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
+import '../models/profile_view_dto.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -17,9 +21,11 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with TickerProviderStateMixin {
   bool _isEditing = false;
   XFile? _selectedImage;
+  late TabController _tabController;
 
   // Controllers
   late TextEditingController _firstNameCtrl;
@@ -35,10 +41,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _initializeControllers();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadData();
+      _loadData();
     });
   }
 
@@ -57,18 +64,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted) return;
     try {
       await ref.read(userProvider.notifier).fetchCurrentUser();
-
-      if (!mounted) return;
-
       final user = ref.read(userProvider).user;
-      if (user != null) {
+
+      if (user != null && mounted) {
         setState(() => _currentUserId = user.id);
+        _syncControllers(user);
 
         if (_currentUserId != null) {
           ref.read(socialProvider(_currentUserId!).notifier).refreshAll(_currentUserId!);
+          ref.read(profileViewProvider.notifier).loadProfileViews();
         }
-
-        _syncControllers(user);
       }
     } catch (e) {
       if (mounted) Helpers.showToast('Failed to load profile', isError: true);
@@ -97,18 +102,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (image != null && mounted) {
       setState(() => _selectedImage = image);
       await ref.read(profileProvider.notifier).updateProfilePicture(image);
-
-      if (mounted) {
-        setState(() => _selectedImage = null);
-      }
+      setState(() => _selectedImage = null);
     }
-  }
-
-  ImageProvider? _getProfileImageProvider(UserModel? user) {
-    if (user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty) {
-      return NetworkImage(user.profilePictureUrl);
-    }
-    return null;
   }
 
   Future<void> _saveChanges() async {
@@ -124,32 +119,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'collectionSchedule': _scheduleCtrl.text.trim(),
     };
 
-    updateData.removeWhere((key, value) => value == null || value.isEmpty);
+    // Remove fields that are empty or null
+    updateData.removeWhere((key, value) =>
+    value == null || (value as String).trim().isEmpty);
 
     if (updateData.isEmpty) {
       Helpers.showToast('No changes to save');
       return;
     }
 
+    // Call the provider
     await ref.read(profileProvider.notifier).updateProfileData(updateData);
 
+    // Refresh local controllers with latest data from backend
     if (mounted) {
+      final updatedUser = ref.read(userProvider).user;
+      if (updatedUser != null) {
+        _syncControllers(updatedUser);
+      }
       setState(() => _isEditing = false);
     }
   }
 
   void _cancelEditing() {
-    if (!mounted) return;
     final user = ref.read(userProvider).user;
     if (user != null) _syncControllers(user);
-
     setState(() => _isEditing = false);
   }
 
-  // Updated: Proper navigation based on user role
   void _navigateToDashboard() {
     final role = ref.read(authProvider).role?.toUpperCase() ?? 'CLIENT';
-
     switch (role) {
       case 'ADMIN':
         context.go('/admin/dashboard');
@@ -174,6 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
@@ -188,11 +188,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final userState = ref.watch(userProvider);
     final profileState = ref.watch(profileProvider);
+    final profileViewState = ref.watch(profileViewProvider);
     final user = userState.user;
-
-    final socialStats = _currentUserId != null
-        ? ref.watch(socialProvider(_currentUserId!)).stats
-        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -214,211 +211,258 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Column(
-                children: [
-                  // Profile Picture
-                  Card(
-                    elevation: 8,
-                    shape: const CircleBorder(),
-                    child: Container(
-                      width: 190,
-                      height: 190,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.green.withOpacity(0.3),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: GestureDetector(
-                        onTap: _isEditing ? _pickImage : null,
-                        child: Stack(
-                          alignment: Alignment.bottomRight,
-                          children: [
-                            CircleAvatar(
-                              radius: 92,
-                              backgroundColor: Colors.green.shade50,
-                              backgroundImage: _getProfileImageProvider(user),
-                              child: _getProfileImageProvider(user) == null
-                                  ? const Icon(Icons.person, size: 92, color: Colors.green)
-                                  : null,
-                            ),
-                            if (_isEditing)
-                              const CircleAvatar(
-                                radius: 22,
-                                backgroundColor: Colors.green,
-                                child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Name and Username
-                  Text(
-                    '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
-                        ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
-                        : 'Your Profile',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-
-                  const SizedBox(height: 28),
-
-                  // Social Stats
-                  if (socialStats != null)
-                    Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildStatItem('Followers', socialStats.followersCount),
-                            _buildStatItem('Likes', socialStats.likesCount),
-                            _buildStatItem('Rating', '${socialStats.averageRating.toStringAsFixed(1)} ★'),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: 28),
-
-                  // Main Profile Information Card
-                  Card(
-                    elevation: 6,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionTitle('Personal Information'),
-                          const SizedBox(height: 12),
-                          _buildField('First Name', user?.firstName, _firstNameCtrl, _isEditing),
-                          _buildDivider(),
-                          _buildField('Middle Name', user?.middleName, _middleNameCtrl, _isEditing),
-                          _buildDivider(),
-                          _buildField('Last Name', user?.lastName, _lastNameCtrl, _isEditing),
-
-                          const SizedBox(height: 32),
-
-                          _buildSectionTitle('Contact & Service'),
-                          const SizedBox(height: 12),
-                          _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, _isEditing),
-                          _buildDivider(),
-                          _buildField('Home Address', user?.homeAddress, _addressCtrl, _isEditing),
-                          _buildDivider(),
-                          _buildField('Waste Preferences', user?.wastePreferences, _wastePrefCtrl, _isEditing),
-                          _buildDivider(),
-                          _buildField('Collection Schedule', user?.collectionSchedule, _scheduleCtrl, _isEditing),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  if (_isEditing)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: profileState.isLoading ? null : _saveChanges,
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          backgroundColor: Colors.green,
-                        ),
-                        child: profileState.isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                ],
-              ),
+      body: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            labelColor: Colors.green,
+            unselectedLabelColor: Colors.grey,
+            tabs: const [
+              Tab(text: 'Overview'),
+              Tab(text: 'Social'),
+              Tab(text: 'Views'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(user, profileState),
+                _buildSocialTab(user),
+                _buildViewsTab(profileViewState),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== TABS ====================
+
+  Widget _buildOverviewTab(UserModel? user, ProfileState profileState) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Column(
+            children: [
+              // Profile Picture
+              Card(
+                elevation: 8,
+                shape: const CircleBorder(),
+                child: Container(
+                  width: 190,
+                  height: 190,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.3),
+                        blurRadius: 30,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: GestureDetector(
+                    onTap: _isEditing ? _pickImage : null,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 92,
+                          backgroundColor: Colors.green.shade50,
+                          backgroundImage: user?.profilePictureUrl != null
+                              ? NetworkImage(user!.profilePictureUrl)
+                              : null,
+                          child: user?.profilePictureUrl == null
+                              ? const Icon(Icons.person, size: 92, color: Colors.green)
+                              : null,
+                        ),
+                        if (_isEditing)
+                          const CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Colors.green,
+                            child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              Text(
+                '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
+                    ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
+                    : 'Your Profile',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+
+              const SizedBox(height: 32),
+
+              if (_isEditing)
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: profileState.isLoading ? null : _saveChanges,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: profileState.isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Save Changes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // ==================== HELPER WIDGETS ====================
+  Widget _buildSocialTab(UserModel? user) {
+    final socialState = _currentUserId != null
+        ? ref.watch(socialProvider(_currentUserId!))
+        : null;
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 20,
-        color: Colors.green,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Column(
+            children: [
+              if (socialState?.stats != null)
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildStatItem('Followers', socialState!.stats!.followersCount),
+                        _buildStatItem('Following', socialState.stats!.followingCount),
+                        _buildStatItem('Likes', socialState.stats!.likesCount),
+                        _buildStatItem('Rating', '${socialState.stats!.averageRating.toStringAsFixed(1)}★'),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+              const Text('More social features coming soon...', style: TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      child: Divider(height: 1, thickness: 1, color: Colors.black12),
+  Widget _buildViewsTab(ProfileViewState viewState) {
+    if (viewState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (viewState.error != null) {
+      return Center(child: Text('Error: ${viewState.error}'));
+    }
+
+    final stats = viewState.stats;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Text('Profile View Stats', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatColumn('Total Views', stats?.totalViews ?? 0),
+                      _buildStatColumn('Unique', stats?.uniqueViewers ?? 0),
+                      _buildStatColumn('Today', stats?.todayViews ?? 0),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+          const Text('Who Viewed Me', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildViewersList(viewState.whoViewedMe, 'No one has viewed your profile yet'),
+
+          const SizedBox(height: 24),
+          const Text('Who I Viewed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildViewersList(viewState.whoIViewed, 'You haven\'t viewed any profiles yet'),
+        ],
+      ),
     );
   }
 
-  Widget _buildField(String label, String? value, TextEditingController ctrl, bool isEditing) {
-    if (!isEditing) {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        subtitle: Text(
-          value?.isNotEmpty == true ? value! : 'Not provided',
-          style: const TextStyle(fontSize: 16.5, height: 1.4),
+  Widget _buildStatColumn(String label, int value) {
+    return Column(
+      children: [
+        Text('$value', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildViewersList(List<ProfileViewDto> viewers, String emptyMessage) {
+    if (viewers.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(emptyMessage, style: const TextStyle(color: Colors.grey)),
         ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: TextFormField(
-        controller: ctrl,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Colors.grey.shade50,
-        ),
-      ),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: viewers.length,
+      itemBuilder: (context, index) {
+        final view = viewers[index];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: view.viewerProfilePictureUrl != null
+                ? NetworkImage(view.viewerProfilePictureUrl!)
+                : null,
+            child: view.viewerProfilePictureUrl == null
+                ? const Icon(Icons.person)
+                : null,
+          ),
+          title: Text(view.viewerName),
+          subtitle: Text(view.viewedAt.toString().substring(0, 16)),
+          trailing: view.isAnonymous ? const Text('Anonymous', style: TextStyle(fontSize: 12)) : null,
+        );
+      },
     );
   }
 
   Widget _buildStatItem(String label, dynamic value) {
     return Column(
       children: [
-        Text(
-          '$value',
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 13.5),
-        ),
+        Text('$value', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13.5)),
       ],
     );
   }
