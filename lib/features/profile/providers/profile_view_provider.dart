@@ -3,14 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:garbigo_frontend/core/config/app_config.dart';
 import 'package:garbigo_frontend/core/network/api_client.dart';
-import '../models/profile_view_dto.dart';
+import 'package:garbigo_frontend/features/social/models/user_summary_dto.dart';
 
 class ProfileViewState {
   final bool isLoading;
   final String? error;
-  final ProfileViewStatsDto? stats;
-  final List<ProfileViewDto> whoViewedMe;
-  final List<ProfileViewDto> whoIViewed;
+  final Map<String, dynamic>? stats;           // Keep raw for now
+  final List<UserSummaryDto> whoViewedMe;
+  final List<UserSummaryDto> whoIViewed;
 
   ProfileViewState({
     this.isLoading = false,
@@ -23,9 +23,9 @@ class ProfileViewState {
   ProfileViewState copyWith({
     bool? isLoading,
     String? error,
-    ProfileViewStatsDto? stats,
-    List<ProfileViewDto>? whoViewedMe,
-    List<ProfileViewDto>? whoIViewed,
+    Map<String, dynamic>? stats,
+    List<UserSummaryDto>? whoViewedMe,
+    List<UserSummaryDto>? whoIViewed,
   }) {
     return ProfileViewState(
       isLoading: isLoading ?? this.isLoading,
@@ -48,7 +48,6 @@ class ProfileViewNotifier extends StateNotifier<ProfileViewState> {
     return dio;
   }
 
-  /// Record a profile view (called when someone visits a profile)
   Future<void> recordProfileView(String viewedUserId) async {
     try {
       await _dio.post('/profile-views/$viewedUserId');
@@ -57,7 +56,6 @@ class ProfileViewNotifier extends StateNotifier<ProfileViewState> {
     }
   }
 
-  /// Load profile view statistics and lists for current user
   Future<void> loadProfileViews() async {
     state = state.copyWith(isLoading: true, error: null);
 
@@ -68,12 +66,12 @@ class ProfileViewNotifier extends StateNotifier<ProfileViewState> {
 
       state = state.copyWith(
         isLoading: false,
-        stats: ProfileViewStatsDto.fromJson(statsRes.data),
+        stats: statsRes.data as Map<String, dynamic>?,
         whoViewedMe: (whoViewedRes.data as List)
-            .map((e) => ProfileViewDto.fromJson(e))
+            .map((e) => UserSummaryDto.fromJson(e))
             .toList(),
         whoIViewed: (whoIViewedRes.data as List)
-            .map((e) => ProfileViewDto.fromJson(e))
+            .map((e) => UserSummaryDto.fromJson(e))
             .toList(),
       );
     } catch (e) {
