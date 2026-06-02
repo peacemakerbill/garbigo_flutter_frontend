@@ -12,6 +12,7 @@ import 'package:garbigo_frontend/features/social/models/user_summary_dto.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
+import 'widgets/full_viewers_dialog.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -24,7 +25,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
   XFile? _selectedImage;
 
-  // Text Controllers
   late TextEditingController _firstNameCtrl;
   late TextEditingController _middleNameCtrl;
   late TextEditingController _lastNameCtrl;
@@ -143,24 +143,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _navigateToDashboard() {
     final role = ref.read(authProvider).role?.toUpperCase() ?? 'CLIENT';
     switch (role) {
-      case 'ADMIN':
-        context.go('/admin/dashboard');
-        break;
-      case 'COLLECTOR':
-        context.go('/dashboard/collector');
-        break;
-      case 'OPERATIONS':
-        context.go('/dashboard/operations');
-        break;
-      case 'FINANCE':
-        context.go('/dashboard/finance');
-        break;
-      case 'SUPPORT':
-        context.go('/dashboard/support');
-        break;
-      case 'CLIENT':
-      default:
-        context.go('/dashboard/client');
+      case 'ADMIN': context.go('/admin/dashboard'); break;
+      case 'COLLECTOR': context.go('/dashboard/collector'); break;
+      case 'OPERATIONS': context.go('/dashboard/operations'); break;
+      case 'FINANCE': context.go('/dashboard/finance'); break;
+      case 'SUPPORT': context.go('/dashboard/support'); break;
+      default: context.go('/dashboard/client');
     }
   }
 
@@ -186,21 +174,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _navigateToDashboard,
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _navigateToDashboard),
         actions: [
           if (_isEditing)
-            TextButton(
-              onPressed: profileState.isLoading ? null : _cancelEditing,
-              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-            )
+            TextButton(onPressed: profileState.isLoading ? null : _cancelEditing, child: const Text('Cancel', style: TextStyle(color: Colors.white)))
           else
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => setState(() => _isEditing = true),
-            ),
+            IconButton(icon: const Icon(Icons.edit), onPressed: () => setState(() => _isEditing = true)),
         ],
       ),
       body: RefreshIndicator(
@@ -212,7 +191,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               constraints: const BoxConstraints(maxWidth: 620),
               child: Column(
                 children: [
-                  // Profile Picture
+                  // Profile Picture & Info (same as before)
                   Card(
                     elevation: 8,
                     shape: const CircleBorder(),
@@ -222,13 +201,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.green.withOpacity(0.3),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 30, spreadRadius: 5)],
                       ),
                       child: GestureDetector(
                         onTap: _isEditing ? _pickImage : null,
@@ -238,21 +211,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             CircleAvatar(
                               radius: 92,
                               backgroundColor: Colors.green.shade50,
-                              backgroundImage: user?.profilePictureUrl != null &&
-                                  user!.profilePictureUrl.isNotEmpty
-                                  ? NetworkImage(user.profilePictureUrl)
-                                  : null,
-                              child: (user?.profilePictureUrl == null ||
-                                  user!.profilePictureUrl.isEmpty)
-                                  ? const Icon(Icons.person, size: 92, color: Colors.green)
-                                  : null,
+                              backgroundImage: user?.profilePictureUrl != null && user!.profilePictureUrl.isNotEmpty
+                                  ? NetworkImage(user.profilePictureUrl) : null,
+                              child: (user?.profilePictureUrl == null || user!.profilePictureUrl.isEmpty)
+                                  ? const Icon(Icons.person, size: 92, color: Colors.green) : null,
                             ),
                             if (_isEditing)
-                              const CircleAvatar(
-                                radius: 22,
-                                backgroundColor: Colors.green,
-                                child: Icon(Icons.camera_alt, size: 20, color: Colors.white),
-                              ),
+                              const CircleAvatar(radius: 22, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 20, color: Colors.white)),
                           ],
                         ),
                       ),
@@ -260,19 +225,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 20),
-
-                  Text(
-                    '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty
-                        ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim()
-                        : 'Your Profile',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text('${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim().isNotEmpty ? '${user?.firstName ?? ''} ${user?.lastName ?? ''}'.trim() : 'Your Profile',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                   Text('@${user?.username ?? 'user'}', style: const TextStyle(color: Colors.grey, fontSize: 16)),
 
                   const SizedBox(height: 28),
 
-                  // Profile Information Card
+                  // Edit Form
                   Card(
                     elevation: 6,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -290,7 +249,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           _buildField('Last Name', user?.lastName, _lastNameCtrl, _isEditing),
 
                           const SizedBox(height: 32),
-
                           _buildSectionTitle('Contact & Service'),
                           const SizedBox(height: 12),
                           _buildField('Phone Number', user?.phoneNumber, _phoneCtrl, _isEditing),
@@ -313,10 +271,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: profileState.isLoading ? null : _saveChanges,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                         child: profileState.isLoading
                             ? const CircularProgressIndicator(color: Colors.white)
                             : const Text('Save Changes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -338,9 +293,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   // ====================== PROFILE VIEWS SECTION ======================
   Widget _buildProfileViewsSection(ProfileViewState viewState) {
-    if (viewState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (viewState.isLoading) return const Center(child: CircularProgressIndicator());
 
     final stats = viewState.stats;
 
@@ -367,19 +320,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
             const SizedBox(height: 24),
             const Divider(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            const Text('Who Viewed Me', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            _buildUsersList(viewState.whoViewedMe, 'No one has viewed your profile yet'),
-
+            _buildViewSection('Who Viewed Me', viewState.whoViewedMe),
             const SizedBox(height: 24),
-            const Text('Who I Viewed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            _buildUsersList(viewState.whoIViewed, "You haven't viewed any profiles yet"),
+            _buildViewSection('Who I Viewed', viewState.whoIViewed),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildViewSection(String title, List<UserSummaryDto> users) {
+    final displayUsers = users.take(3).toList();
+    final hasMore = users.length > 3;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        _buildUsersList(displayUsers),
+        if (hasMore)
+          TextButton.icon(
+            onPressed: () => _showFullViewersDialog(title, users),
+            icon: const Icon(Icons.expand_more),
+            label: Text('Show All (${users.length})'),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildUsersList(List<UserSummaryDto> users) {
+    if (users.isEmpty) {
+      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No users yet', style: TextStyle(color: Colors.grey)));
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: users.length,
+      itemBuilder: (context, index) {
+        final user = users[index];
+        return ListTile(
+          dense: true,
+          leading: CircleAvatar(
+            radius: 20,
+            backgroundImage: user.profilePictureUrl != null ? NetworkImage(user.profilePictureUrl!) : null,
+            child: user.profilePictureUrl == null ? const Icon(Icons.person, size: 20) : null,
+          ),
+          title: Text(user.fullName ?? '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim()),
+          subtitle: Text('@${user.username ?? 'user'}'),
+        );
+      },
+    );
+  }
+
+  void _showFullViewersDialog(String title, List<UserSummaryDto> users) {
+    showDialog(
+      context: context,
+      builder: (context) => FullViewersDialog(title: title, users: users),
     );
   }
 
@@ -392,73 +393,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildUsersList(List<UserSummaryDto> users, String emptyMessage) {
-    if (users.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text(emptyMessage, style: const TextStyle(color: Colors.grey)),
-      );
-    }
+  Widget _buildSectionTitle(String title) => Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green));
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: users.length > 5 ? 5 : users.length,
-      itemBuilder: (context, index) {
-        final user = users[index];
-        return ListTile(
-          dense: true,
-          leading: CircleAvatar(
-            radius: 20,
-            backgroundImage: user.profilePictureUrl != null
-                ? NetworkImage(user.profilePictureUrl!)
-                : null,
-            child: user.profilePictureUrl == null
-                ? const Icon(Icons.person, size: 20)
-                : null,
-          ),
-          title: Text(user.fullName ?? '${user.firstName ?? ''} ${user.lastName ?? ''}'.trim()),
-          subtitle: Text('@${user.username ?? 'user'}'),
-        );
-      },
-    );
-  }
-
-  // ==================== HELPER WIDGETS ====================
-  Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.green));
-  }
-
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      child: Divider(height: 1, thickness: 1, color: Colors.black12),
-    );
-  }
+  Widget _buildDivider() => const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, thickness: 1, color: Colors.black12));
 
   Widget _buildField(String label, String? value, TextEditingController ctrl, bool isEditing) {
     if (!isEditing) {
       return ListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-        subtitle: Text(
-          value?.isNotEmpty == true ? value! : 'Not provided',
-          style: const TextStyle(fontSize: 16.5, height: 1.4),
-        ),
+        subtitle: Text(value?.isNotEmpty == true ? value! : 'Not provided', style: const TextStyle(fontSize: 16.5, height: 1.4)),
       );
     }
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: TextFormField(
-        controller: ctrl,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Colors.grey.shade50,
-        ),
-      ),
+      child: TextFormField(controller: ctrl, decoration: InputDecoration(labelText: label, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.grey.shade50)),
     );
   }
 }
