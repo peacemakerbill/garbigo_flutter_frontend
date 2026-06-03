@@ -11,6 +11,9 @@ import 'package:garbigo_frontend/features/profile/providers/profile_view_provide
 import 'package:garbigo_frontend/features/social/models/social_action_request.dart';
 import 'package:garbigo_frontend/features/social/models/review_response_dto.dart';
 import 'package:garbigo_frontend/features/social/models/review_update_request.dart';
+import 'package:garbigo_frontend/features/profile/models/profile_view_dto.dart';
+
+import '../../../core/network/api_client.dart';
 
 class OtherUserProfileScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -26,16 +29,33 @@ class _OtherUserProfileScreenState
   late final _provider = socialProvider(widget.userId);
   final MapController _mapController = MapController();
 
+  ProfileViewStatsDto? _profileViewsStats;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Refresh all social data
-      ref.read(_provider.notifier).refreshAll(widget.userId);
-
-      // Record profile view (important for analytics)
-      ref.read(profileViewProvider.notifier).recordProfileView(widget.userId);
+      _loadAllData();
     });
+  }
+
+  Future<void> _loadAllData() async {
+    await ref.read(_provider.notifier).refreshAll(widget.userId);
+    await ref.read(profileViewProvider.notifier).recordProfileView(widget.userId);
+    await _loadProfileViewsStats();
+  }
+
+  Future<void> _loadProfileViewsStats() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/profile-views/stats/${widget.userId}');
+
+      setState(() {
+        _profileViewsStats = ProfileViewStatsDto.fromJson(response.data);
+      });
+    } catch (e) {
+      debugPrint('Failed to load profile views stats: $e');
+    }
   }
 
   @override
@@ -44,9 +64,6 @@ class _OtherUserProfileScreenState
     final currentUser = ref.watch(userProvider).user;
     final isOwnProfile = currentUser?.id == widget.userId;
     final displayName = _resolveDisplayName(socialState, currentUser);
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isLargeScreen = screenWidth > 900;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +77,7 @@ class _OtherUserProfileScreenState
       ),
       body: RefreshIndicator(
         color: Colors.green,
-        onRefresh: () => ref.read(_provider.notifier).refreshAll(widget.userId),
+        onRefresh: _loadAllData,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Center(
@@ -92,7 +109,6 @@ class _OtherUserProfileScreenState
 
                   const SizedBox(height: 16),
 
-                  // Name and Email
                   Text(
                     displayName,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -108,23 +124,26 @@ class _OtherUserProfileScreenState
 
                   const SizedBox(height: 24),
 
-                  // Stats Card
+                  // Social Stats
                   _buildStatsCard(socialState),
+
+                  const SizedBox(height: 16),
+
+                  // Profile Views Stats
+                  if (_profileViewsStats != null)
+                    _buildProfileViewsStatsCard(_profileViewsStats!),
 
                   const SizedBox(height: 20),
 
-                  // Action Buttons (for other users)
                   if (!isOwnProfile) ...[
                     _buildActionButtons(socialState),
                     const SizedBox(height: 24),
                   ],
 
-                  // Live Location Card
                   _buildLocationCard(socialState),
 
                   const SizedBox(height: 24),
 
-                  // Reviews Section
                   _buildReviewsSection(socialState, currentUser?.id, isOwnProfile),
                 ],
               ),
@@ -147,46 +166,90 @@ class _OtherUserProfileScreenState
     );
   }
 
-  // ====================== STATS CARD ======================
   Widget _buildStatsCard(SocialState state) {
     final stats = state.stats;
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _statItem(Icons.people, stats?.followersCount ?? 0, 'Followers',
-                onTap: () => _showUserList('Followers')),
-            _statItem(Icons.person_outline, stats?.followingCount ?? 0, 'Following',
-                onTap: () => _showUserList('Following')),
+            _statItem(Icons.people, stats?.followersCount ?? 0, 'Followers'),
+            _statItem(Icons.person_outline, stats?.followingCount ?? 0, 'Following'),
             _statItem(Icons.favorite, stats?.likesCount ?? 0, 'Likes', color: Colors.red),
-            _statItem(Icons.star, stats?.averageRating?.toStringAsFixed(1) ?? '—', 'Rating',
-                color: Colors.amber),
+            _statItem(Icons.star, stats?.averageRating?.toStringAsFixed(1) ?? '—', 'Rating', color: Colors.amber),
           ],
         ),
       ),
     );
   }
 
-  Widget _statItem(IconData icon, dynamic value, String label, {Color? color, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+  Widget _buildProfileViewsStatsCard(ProfileViewStatsDto stats) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 34, color: color ?? Colors.green),
-            const SizedBox(height: 8),
-            Text(value.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const Text('Profile Views', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statColumn('Total', stats.totalViews),
+                _statColumn('Unique', stats.uniqueViewers),
+                _statColumn('Today', stats.todayViews),
+              ],
+            ),
+            if (stats.recentViewers.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text('Recent Viewers', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ...stats.recentViewers.map((viewer) => ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  radius: 20,
+                  backgroundImage: viewer.viewerProfilePictureUrl != null
+                      ? NetworkImage(viewer.viewerProfilePictureUrl!)
+                      : null,
+                  child: viewer.viewerProfilePictureUrl == null
+                      ? const Icon(Icons.person, size: 20)
+                      : null,
+                ),
+                title: Text(viewer.viewerName),
+                subtitle: Text(viewer.viewedAt.toString().substring(0, 16)),
+              )),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statColumn(String label, int value) {
+    return Column(
+      children: [
+        Text('$value', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _statItem(IconData icon, dynamic value, String label, {Color? color}) {
+    return Column(
+      children: [
+        Icon(icon, size: 34, color: color ?? Colors.green),
+        const SizedBox(height: 8),
+        Text(value.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      ],
     );
   }
 

@@ -21,7 +21,7 @@ class ProfileViewDto {
       viewedAt: json['viewedAt'] != null
           ? DateTime.parse(json['viewedAt'])
           : DateTime.now(),
-      isAnonymous: json['isAnonymous'] ?? true,
+      isAnonymous: json['anonymous'] ?? json['isAnonymous'] ?? true,
     );
   }
 }
